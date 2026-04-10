@@ -8,7 +8,7 @@ use Inertia\Inertia;
 
 Route::get('/', function () {
     return Inertia::render('FrontPage');
-});
+})->name('front');
 
 
 Route::get('/statement-of-account', function () {
@@ -27,20 +27,20 @@ Route::middleware('auth')->group(function () {
 
 // Statement of Account API routes (with CSRF protection)
 Route::middleware(['web'])->group(function () {
-    Route::get('/api/statements', [StatementOfAccountController::class, 'index'])->middleware('auth');
-    Route::get('/api/statements/all', [StatementOfAccountController::class, 'indexAll'])->middleware('auth');
-    Route::post('/api/statements', [StatementOfAccountController::class, 'store'])->middleware('auth');
-    Route::post('/api/statements/multiple', [StatementOfAccountController::class, 'storeMultiple'])->middleware('auth');
-    Route::get('/api/statements/{id}', [StatementOfAccountController::class, 'show'])->middleware('auth');
-    Route::put('/api/statements/{id}', [StatementOfAccountController::class, 'update'])->middleware('auth');
-    Route::delete('/api/statements/{id}', [StatementOfAccountController::class, 'destroy'])->middleware('auth');
+    Route::get('/api/statements', [StatementOfAccountController::class, 'index'])->middleware(['auth', 'verified']);
+    Route::get('/api/statements/all', [StatementOfAccountController::class, 'indexAll'])->middleware(['auth', 'verified']);
+    Route::post('/api/statements', [StatementOfAccountController::class, 'store'])->middleware(['auth', 'verified']);
+    Route::post('/api/statements/multiple', [StatementOfAccountController::class, 'storeMultiple'])->middleware(['auth', 'verified']);
+    Route::get('/api/statements/{id}', [StatementOfAccountController::class, 'show'])->middleware(['auth', 'verified']);
+    Route::put('/api/statements/{id}', [StatementOfAccountController::class, 'update'])->middleware(['auth', 'verified']);
+    Route::delete('/api/statements/{id}', [StatementOfAccountController::class, 'destroy'])->middleware(['auth', 'verified']);
     
     // Session refresh route
     Route::get('/api/refresh-csrf', function() {
         return response()->json([
             'csrf_token' => csrf_token()
         ]);
-    })->middleware('auth');
+    })->middleware(['auth', 'verified']);
 });
 
 require __DIR__.'/auth.php';

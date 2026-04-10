@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UnauthenticatedEmailVerificationRequest;
 use Illuminate\Auth\Events\Verified;
-use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\RedirectResponse;
 
 class VerifyEmailController extends Controller
@@ -12,16 +12,31 @@ class VerifyEmailController extends Controller
     /**
      * Mark the authenticated user's email address as verified.
      */
-    public function __invoke(EmailVerificationRequest $request): RedirectResponse
+    public function __invoke(UnauthenticatedEmailVerificationRequest $request): RedirectResponse
     {
-        if ($request->user()->hasVerifiedEmail()) {
-            return redirect()->intended(route('statement-of-account', absolute: false).'?verified=1');
+        // Get the user from the custom request (handles both authenticated and unauthenticated)
+        $user = $request->user();
+        
+        \Log::info('VerifyEmailController called for user: ' . ($user ? $user->email : 'null'));
+        
+        if (!$user) {
+            \Log::error('Invalid verification link - user not found');
+            return redirect(route('front'))->with('error', 'Invalid verification link');
+        }
+        
+        if ($user->hasVerifiedEmail()) {
+            \Log::info('User already verified, redirecting to front page');
+            return redirect(route('front') . '?login=true&verified=true');
         }
 
-        if ($request->user()->markEmailAsVerified()) {
-            event(new Verified($request->user()));
+        if ($user->markEmailAsVerified()) {
+            \Log::info('User email marked as verified: ' . $user->email);
+            event(new Verified($user));
         }
 
-        return redirect()->intended(route('statement-of-account', absolute: false).'?verified=1');
+        $redirectUrl = route('front') . '?login=true&verified=true';
+        \Log::info('Redirecting to: ' . $redirectUrl);
+        
+        return redirect($redirectUrl);
     }
 }

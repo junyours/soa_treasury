@@ -475,7 +475,7 @@ export default function SavedStatements({ auth }) {
                                             <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-right whitespace-nowrap">ASSESSED VALUE</th>
                                             <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-center whitespace-nowrap">PAYMENT YEAR</th>
                                             <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-right whitespace-nowrap">BASIC/SEF</th>
-                                            <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-right whitespace-nowrap">PENALTY/Discount</th>
+                                            <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-right whitespace-nowrap">PEN/DISC</th>
                                             <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-right whitespace-nowrap">TOTAL</th>
                                         </tr>
                                     </thead>

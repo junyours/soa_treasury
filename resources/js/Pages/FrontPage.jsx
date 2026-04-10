@@ -258,7 +258,7 @@ export default function FrontPage() {
                         <div className="flex justify-between items-center h-16">
                             <div className="flex items-center space-x-3">
                                 <img 
-                                    src="/images/Untitled.png" 
+                                    src="/images/Opol-logo real.png" 
                                     alt="Municipality of Opol Logo" 
                                     className="h-8 w-8 object-contain"
                                 />
@@ -281,77 +281,61 @@ export default function FrontPage() {
                 </nav>
 
                 {/* Hero Section */}
-                <div className="relative px-4 sm:px-6 lg:px-8 py-20 md:py-32">
-                    <div className="max-w-4xl mx-auto text-center">
-                        {/* Logo */}
-                        <div className="mb-8">
-                            <img 
-                                src="/images/Untitled.png" 
-                                alt="Municipality of Opol Logo" 
-                                className="h-24 w-24 mx-auto object-contain"
-                            />
-                        </div>
-
-                        {/* Main Titles */}
-                        <div className="space-y-4 mb-8">
-                            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 leading-tight">
-                                Municipality of Opol
-                            </h1>
-                            <h2 className="text-2xl md:text-4xl font-semibold text-gray-700">
-                                Province of Misamis Oriental
-                            </h2>
-                            <div className="text-xl md:text-2xl font-medium text-blue-600">
-                                Municipal Treasury Office
-                            </div>
-                        </div>
-
-                        {/* Description */}
-                        <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-12">
-                            Modern digital treasury management for the Municipality of Opol. 
-                            Access your tax records, manage payments, and streamline your financial operations.
-                        </p>
-                    </div>
-                </div>
-
-                {/* Features Section */}
-                <div className="bg-white py-20">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="text-center mb-16">
-                            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                                Treasury Services
-                            </h2>
-                            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                                Everything you need to manage your municipal financial requirements
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                            <div className="text-center p-8 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
+                <div className="relative min-h-screen flex items-center justify-center px-6 lg:px-8">
+                    <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50"></div>
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.05),transparent_70%)]"></div>
+                    
+                    <div className="relative z-10 w-full max-w-6xl mx-auto">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                            
+                            {/* Left Side - Logo and Visual Elements */}
+                            <div className="lg:col-span-5 text-center lg:text-left flex items-center justify-center">
+                                <div className="relative inline-block">
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/20 to-indigo-500/20 blur-3xl rounded-full"></div>
+                                    <div className="relative bg-white/90 backdrop-blur-md rounded-3xl p-10 shadow-2xl border border-white/30">
+                                        <img 
+                                            src="/images/Opol-logo real.png" 
+                                            alt="Municipality of Opol Logo" 
+                                            className="h-96 w-96 object-contain"
+                                        />
+                                    </div>
                                 </div>
-                                <h3 className="text-xl font-semibold text-gray-900 mb-2">Tax Records</h3>
-                                <p className="text-gray-600">
-                                    View and manage your property tax records and statements online
-                                </p>
                             </div>
-
-                            <div className="text-center p-8 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v1a1 1 0 001 1h4a1 1 0 001-1v-1m3-2V8a2 2 0 00-2-2H8a2 2 0 00-2 2v6m9 4h-4a1 1 0 01-1-1v-1m0-4V8a2 2 0 012-2h4a2 2 0 012 2v4" />
-                                    </svg>
+                            
+                            {/* Right Side - Content */}
+                            <div className="lg:col-span-7 text-center lg:text-left space-y-8">
+                                {/* Location Info */}
+                                <div className="space-y-1 mt-0">
+                                    <p className="text-sm text-gray-500 font-medium tracking-[0.4em] uppercase">
+                                        Municipality of Opol
+                                    </p>
+                                    <p className="text-xs text-gray-400 tracking-wide">
+                                        Province of Misamis Oriental
+                                    </p>
                                 </div>
-                                <h3 className="text-xl font-semibold text-gray-900 mb-2">Account Management</h3>
-                                <p className="text-gray-600">
-                                    Manage your personal and property information securely
-                                </p>
+                                
+                                {/* Main Title */}
+                                <div className="space-y-2">
+                                    <h1 className="text-7xl md:text-8xl lg:text-9xl font-black text-gray-900 leading-none tracking-tight">
+                                        Municipal
+                                    </h1>
+                                    <h2 className="text-6xl md:text-7xl lg:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 leading-none tracking-tight">
+                                        Treasury Office
+                                    </h2>
+                                </div>
+                                
+                                {/* Description */}
+                                <div className="max-w-2xl">
+                                    <p className="text-xl text-gray-600 leading-relaxed">
+                                        Modern digital treasury management for the Municipality of Opol. 
+                                        Access your tax records, manage payments, and streamline your financial operations.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
+
 
                 {/* Footer */}
                 <footer className="bg-gray-900 text-white py-12">
@@ -359,7 +343,7 @@ export default function FrontPage() {
                         <div className="text-center">
                             <div className="flex justify-center items-center mb-6 space-x-3">
                                 <img 
-                                    src="/images/Untitled.png" 
+                                    src="/images/Opol-logo real.png" 
                                     alt="Municipality of Opol Logo" 
                                     className="h-10 w-10 object-contain"
                                 />
@@ -386,7 +370,7 @@ export default function FrontPage() {
                         <div className="p-8">
                             <div className="text-center mb-6">
                                 <img 
-                                    src="/images/Untitled.png" 
+                                    src="/images/Opol-logo real.png" 
                                     alt="Logo" 
                                     className="h-12 w-12 mx-auto mb-4"
                                 />
@@ -504,7 +488,7 @@ export default function FrontPage() {
                         <div className="p-8">
                             <div className="text-center mb-6">
                                 <img 
-                                    src="/images/Untitled.png" 
+                                    src="/images/Opol-logo real.png" 
                                     alt="Logo" 
                                     className="h-12 w-12 mx-auto mb-4"
                                 />
@@ -614,7 +598,7 @@ export default function FrontPage() {
                         <div className="p-8">
                             <div className="text-center mb-6">
                                 <img 
-                                    src="/images/Untitled.png" 
+                                    src="/images/Opol-logo real.png" 
                                     alt="Logo" 
                                     className="h-12 w-12 mx-auto mb-4"
                                 />
@@ -688,7 +672,7 @@ export default function FrontPage() {
                         <div className="p-8">
                             <div className="text-center mb-6">
                                 <img 
-                                    src="/images/Untitled.png" 
+                                    src="/images/Opol-logo real.png" 
                                     alt="Logo" 
                                     className="h-12 w-12 mx-auto mb-4"
                                 />
@@ -747,7 +731,7 @@ export default function FrontPage() {
                         <div className="p-8">
                             <div className="text-center mb-6">
                                 <img 
-                                    src="/images/Untitled.png" 
+                                    src="/images/Opol-logo real.png" 
                                     alt="Logo" 
                                     className="h-12 w-12 mx-auto mb-4"
                                 />

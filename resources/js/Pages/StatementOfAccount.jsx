@@ -37,8 +37,8 @@ export default function StatementOfAccount({ auth }) {
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [selectedPayment, setSelectedPayment] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
-    const [preparedBy, setPreparedBy] = useState(auth?.user?.name || '');
-    const [certifiedCorrectBy, setCertifiedCorrectBy] = useState('Lalaine M. Cariliman');
+    const [preparedBy, setPreparedBy] = useState((auth?.user?.name || '').toUpperCase());
+    const [certifiedCorrectBy, setCertifiedCorrectBy] = useState('LALAINE M. CARILIMAN');
     const [saveMessage, setSaveMessage] = useState('');
     const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, targetId: null });
     const [history, setHistory] = useState([]);
@@ -167,8 +167,8 @@ export default function StatementOfAccount({ auth }) {
             const previousState = history[historyIndex - 1];
             setStatements(previousState.statements);
             setEnviFee(previousState.enviFee);
-            setPreparedBy(previousState.preparedBy);
-            setCertifiedCorrectBy(previousState.certifiedCorrectBy);
+            setPreparedBy(previousState.preparedBy?.toUpperCase() || '');
+            setCertifiedCorrectBy(previousState.certifiedCorrectBy?.toUpperCase() || '');
             setHistoryIndex(prev => prev - 1);
         }
     };
@@ -225,11 +225,11 @@ export default function StatementOfAccount({ auth }) {
         }
 
         if (savedPreparedBy) {
-            setPreparedBy(savedPreparedBy);
+            setPreparedBy(savedPreparedBy.toUpperCase());
         }
 
         if (savedCertifiedCorrectBy) {
-            setCertifiedCorrectBy(savedCertifiedCorrectBy);
+            setCertifiedCorrectBy(savedCertifiedCorrectBy.toUpperCase());
         }
     }, []);
 
@@ -389,31 +389,75 @@ export default function StatementOfAccount({ auth }) {
         const currentYear = currentDate.getFullYear();
         const currentMonth = currentDate.getMonth() + 1; // 1-12
         
-        // Only apply tax amnesty for April-July 2026
-        if (currentYear === 2026 && currentMonth >= 4 && currentMonth <= 7) {
-            const year = parseInt(paymentYear);
-            
-            if (year === 2026) {
-                // 2026: Different penalty rates per month
-                if (currentMonth === 4) return { years: 1, penaltyRate: 0.08 };      // April: 8%
-                if (currentMonth === 5) return { years: 1, penaltyRate: 0.10 };      // May: 10%
-                if (currentMonth === 6) return { years: 1, penaltyRate: 0.12 };      // June: 12%
-                if (currentMonth === 7) return { years: 1, penaltyRate: 0.14 };      // July: 14%
-            } else if (year === 2025) {
-                // 2025: Different penalty rates per month
-                if (currentMonth === 4) return { years: 1, penaltyRate: 0.32 };      // April: 32%
-                if (currentMonth === 5) return { years: 1, penaltyRate: 0.34 };      // May: 34%
-                if (currentMonth === 6) return { years: 1, penaltyRate: 0.36 };      // June: 36%
-                if (currentMonth === 7) return { years: 1, penaltyRate: 0.36 };      // July: 36%
-            } else if (year === 2024) {
-                // 2024: Different penalty rates per month
-                if (currentMonth === 4) return { years: 1, penaltyRate: 0.44 };      // April: 44%
-                if (currentMonth === 5) return { years: 1, penaltyRate: 0.46 };      // May: 46%
-                if (currentMonth === 6) return { years: 1, penaltyRate: 0.48 };      // June: 48%
-                if (currentMonth === 7) return { years: 1, penaltyRate: 0.48 };      // July: 48%
-            } else if (year <= 2023) {
-                // 2023 and below: No penalty
-                return { years: 1, penaltyRate: 0 };
+        // Handle year range (e.g., "2020-2022")
+        if (paymentYear.includes('-')) {
+            const [startYear, endYear] = paymentYear.split('-').map(y => parseInt(y.trim()));
+            if (!isNaN(startYear) && !isNaN(endYear)) {
+                const years = endYear - startYear + 1;
+                
+                // Only apply tax amnesty for April-July 2026
+                if (currentYear === 2026 && currentMonth >= 4 && currentMonth <= 7) {
+                    // For tax amnesty, we need to calculate the average penalty rate for the range
+                    let totalPenaltyRate = 0;
+                    
+                    for (let year = startYear; year <= endYear; year++) {
+                        if (year === 2026) {
+                            // 2026: Different penalty rates per month
+                            if (currentMonth === 4) totalPenaltyRate += 0.08;      // April: 8%
+                            else if (currentMonth === 5) totalPenaltyRate += 0.10;  // May: 10%
+                            else if (currentMonth === 6) totalPenaltyRate += 0.12;  // June: 12%
+                            else if (currentMonth === 7) totalPenaltyRate += 0.14;  // July: 14%
+                        } else if (year === 2025) {
+                            // 2025: Different penalty rates per month
+                            if (currentMonth === 4) totalPenaltyRate += 0.32;      // April: 32%
+                            else if (currentMonth === 5) totalPenaltyRate += 0.34;  // May: 34%
+                            else if (currentMonth === 6) totalPenaltyRate += 0.36;  // June: 36%
+                            else if (currentMonth === 7) totalPenaltyRate += 0.36;  // July: 36%
+                        } else if (year === 2024) {
+                            // 2024: Different penalty rates per month
+                            if (currentMonth === 4) totalPenaltyRate += 0.44;      // April: 44%
+                            else if (currentMonth === 5) totalPenaltyRate += 0.46;  // May: 46%
+                            else if (currentMonth === 6) totalPenaltyRate += 0.48;  // June: 48%
+                            else if (currentMonth === 7) totalPenaltyRate += 0.48;  // July: 48%
+                        } else if (year <= 2023) {
+                            // 2023 and below: No penalty
+                            totalPenaltyRate += 0;
+                        }
+                    }
+                    
+                    // Return average penalty rate for the range
+                    return { years, penaltyRate: totalPenaltyRate / years };
+                }
+            }
+        }
+        
+        // Handle single year
+        const year = parseInt(paymentYear);
+        if (!isNaN(year)) {
+            // Only apply tax amnesty for April-July 2026
+            if (currentYear === 2026 && currentMonth >= 4 && currentMonth <= 7) {
+                if (year === 2026) {
+                    // 2026: Different penalty rates per month
+                    if (currentMonth === 4) return { years: 1, penaltyRate: 0.08 };      // April: 8%
+                    if (currentMonth === 5) return { years: 1, penaltyRate: 0.10 };      // May: 10%
+                    if (currentMonth === 6) return { years: 1, penaltyRate: 0.12 };      // June: 12%
+                    if (currentMonth === 7) return { years: 1, penaltyRate: 0.14 };      // July: 14%
+                } else if (year === 2025) {
+                    // 2025: Different penalty rates per month
+                    if (currentMonth === 4) return { years: 1, penaltyRate: 0.32 };      // April: 32%
+                    if (currentMonth === 5) return { years: 1, penaltyRate: 0.34 };      // May: 34%
+                    if (currentMonth === 6) return { years: 1, penaltyRate: 0.36 };      // June: 36%
+                    if (currentMonth === 7) return { years: 1, penaltyRate: 0.36 };      // July: 36%
+                } else if (year === 2024) {
+                    // 2024: Different penalty rates per month
+                    if (currentMonth === 4) return { years: 1, penaltyRate: 0.44 };      // April: 44%
+                    if (currentMonth === 5) return { years: 1, penaltyRate: 0.46 };      // May: 46%
+                    if (currentMonth === 6) return { years: 1, penaltyRate: 0.48 };      // June: 48%
+                    if (currentMonth === 7) return { years: 1, penaltyRate: 0.48 };      // July: 48%
+                } else if (year <= 2023) {
+                    // 2023 and below: No penalty
+                    return { years: 1, penaltyRate: 0 };
+                }
             }
         }
         
@@ -644,8 +688,11 @@ export default function StatementOfAccount({ auth }) {
         });
     };
 
+    // Calculate RPT total (sum of all statement totals, excluding environmental fee)
+    const rptTotal = roundToEven(statements.reduce((sum, statement) => sum + (parseFloat(statement.total) || 0), 0));
+    
     // Calculate grand total
-    const grandTotal = roundToEven(statements.reduce((sum, statement) => sum + (parseFloat(statement.total) || 0), 0) + (parseFloat(enviFee) || 0));
+    const grandTotal = roundToEven(rptTotal + (parseFloat(enviFee) || 0));
 
     const filteredStatements = statements.filter(statement =>
         (selectedYear === 'all' || statement.paymentYear === selectedYear) &&
@@ -1155,13 +1202,15 @@ export default function StatementOfAccount({ auth }) {
                                                         <div className="border-b-2 border-gray-800 mt-1"></div>
                                                     )}
                                                 </td>
-                                                <td 
-                                                    className="border border-gray-800 px-2 py-1 text-xs cursor-text hover:bg-blue-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                                    contentEditable
-                                                    suppressContentEditableWarning={true}
-                                                    onBlur={(e) => updateStatement(statement.id, 'paymentYear', e.target.textContent)}
-                                                    dangerouslySetInnerHTML={{ __html: statement.paymentYear || '' }}
-                                                />
+                                                <td className="border border-gray-800 px-2 py-1 text-xs">
+                                                    <input
+                                                        type="text"
+                                                        value={statement.paymentYear || ''}
+                                                        onChange={(e) => updateStatement(statement.id, 'paymentYear', e.target.value)}
+                                                        className="w-full px-1 py-0 text-xs border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-transparent"
+                                                        placeholder="Year"
+                                                    />
+                                                </td>
                                                 <td className="border border-gray-800 px-2 py-1 text-xs text-right font-medium">
                                                     {statement.penaltyDiscountType === 'tax_diff' ? (
                                                         <div 
@@ -1172,7 +1221,7 @@ export default function StatementOfAccount({ auth }) {
                                                                 const numValue = parseFloat(e.target.textContent) || 0;
                                                                 updateStatement(statement.id, 'fullPayment', numValue);
                                                             }}
-                                                            dangerouslySetInnerHTML={{ __html: statement.fullPayment !== 0 ? statement.fullPayment : '' }}
+                                                            dangerouslySetInnerHTML={{ __html: statement.fullPayment !== 0 ? parseFloat(statement.fullPayment).toFixed(2) : '' }}
                                                         />
                                                     ) : (
                                                         <span className="text-gray-700">
@@ -1184,7 +1233,7 @@ export default function StatementOfAccount({ auth }) {
                                                     <div className="space-y-1">
                                                         {statement.penaltyDiscountType === 'tax_diff' ? (
                                                             <div className="flex items-center justify-between p-1 bg-green-50 rounded border border-green-200">
-                                                                <span className="text-xs font-medium text-green-700">Tax Diff</span>
+                                                                <span className="text-xs font-medium text-green-700">{taxAmnestyEnabled ? 'Tax Amnesty' : 'Tax Diff'}</span>
                                                                 <button
                                                                     onClick={() => handleRemoveTaxDiff(statement.id)}
                                                                     className="text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
@@ -1211,7 +1260,7 @@ export default function StatementOfAccount({ auth }) {
                                                                     className="text-xs text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap transition-colors font-medium"
                                                                     title="Remove penalty/discount calculation"
                                                                 >
-                                                                    Tax Diff
+                                                                    {taxAmnestyEnabled ? 'Tax Amnesty' : 'Tax Diff'}
                                                                 </button>
                                                             </div>
                                                         )}
@@ -1233,7 +1282,13 @@ export default function StatementOfAccount({ auth }) {
                                     </tbody>
                                     <tfoot>
                                         <tr>
-                                            <td colSpan="9" className="border border-gray-800 px-2 py-1 text-xs font-bold text-right">ENVI. FEE</td>
+                                            <td colSpan="9" className="border border-gray-800 px-2 py-1 text-xs font-bold text-right bg-yellow-50">RPT TOTAL</td>
+                                            <td className="border border-gray-800 px-2 py-1 text-xs text-right font-bold bg-yellow-50">
+                                                {rptTotal !== 0 ? formatCurrency(rptTotal) : ''}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td colSpan="9" className="border border-gray-800 px-2 py-1 text-xs font-bold text-right">ENVIRONMENTAL PROTECTION FEE</td>
                                             <td className="border border-gray-800 px-2 py-1 text-xs relative">
                                                 <input
                                                     type="text"
@@ -1269,7 +1324,7 @@ export default function StatementOfAccount({ auth }) {
                                         <input
                                             type="text"
                                             value={preparedBy}
-                                            onChange={(e) => setPreparedBy(e.target.value)}
+                                            onChange={(e) => setPreparedBy(e.target.value.toUpperCase())}
                                             className="text-sm font-bold text-gray-900 text-center bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded w-full"
                                             placeholder="Enter name"
                                         />
@@ -1282,11 +1337,11 @@ export default function StatementOfAccount({ auth }) {
                                         <input
                                             type="text"
                                             value={certifiedCorrectBy}
-                                            onChange={(e) => setCertifiedCorrectBy(e.target.value)}
+                                            onChange={(e) => setCertifiedCorrectBy(e.target.value.toUpperCase())}
                                             className="text-sm font-bold text-gray-900 text-center bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded w-full"
                                             placeholder="Enter name"
                                         />
-                                        <p className="text-xs text-gray-700">Acting Municipal Treasurer</p>
+                                        <p className="text-xs text-gray-700">ACTING MUNICIPAL TREASURER</p>
                                     </div>
                                 </div>
                             </div>

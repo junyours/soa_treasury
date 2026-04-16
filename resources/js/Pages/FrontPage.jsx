@@ -63,11 +63,42 @@ export default function FrontPage() {
         }
     }, []);
 
+    // Client-side validation for login
+    const validateLoginForm = () => {
+        const errors = {};
+        
+        // Email validation
+        if (!loginData.email) {
+            errors.email = ['Email address is required.'];
+        } else if (!/\S+@\S+\.\S+/.test(loginData.email)) {
+            errors.email = ['Please enter a valid email address.'];
+        }
+        
+        // Password validation
+        if (!loginData.password) {
+            errors.password = ['Password is required.'];
+        } else if (loginData.password.length < 8) {
+            errors.password = ['Password must be at least 8 characters long.'];
+        }
+        
+        return errors;
+    };
+
     // Login handlers
     const handleLoginSubmit = async (e) => {
         e.preventDefault();
-        setLoginProcessing(true);
+        
+        // Clear previous errors
         setLoginErrors({});
+        
+        // Client-side validation
+        const clientErrors = validateLoginForm();
+        if (Object.keys(clientErrors).length > 0) {
+            setLoginErrors(clientErrors);
+            return;
+        }
+        
+        setLoginProcessing(true);
 
         try {
             // Use FormData for proper Laravel form submission
@@ -82,7 +113,7 @@ export default function FrontPage() {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept': 'application/json',
                 },
                 body: formData
             });
@@ -91,27 +122,28 @@ export default function FrontPage() {
                 setShowLoginModal(false);
                 router.visit('/statement-of-account');
             } else {
-                // Try to parse as JSON first, if fails, try as text
+                // Try to parse as JSON first
                 let data;
                 try {
                     data = await response.json();
                 } catch {
+                    // If JSON parsing fails, try to extract errors from HTML response
                     const text = await response.text();
-                    // Try to extract errors from HTML response
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(text, 'text/html');
-                    const errorElements = doc.querySelectorAll('.text-red-600');
+                    const errorElements = doc.querySelectorAll('.text-red-600, .alert-danger');
+                    
                     if (errorElements.length > 0) {
                         const errors = {};
                         errorElements.forEach(el => {
                             const text = el.textContent.trim();
-                            if (text) {
+                            if (text && !text.includes('The password field is required.') && !text.includes('The email field is required.')) {
                                 errors.email = [text];
                             }
                         });
                         setLoginErrors(errors);
                     } else {
-                        setLoginErrors({ email: ['Login failed. Please check your credentials.'] });
+                        setLoginErrors({ email: ['Login failed. Please check your email and password and try again.'] });
                     }
                     return;
                 }
@@ -120,10 +152,22 @@ export default function FrontPage() {
                     setLoginErrors(data.errors);
                 } else if (data.message) {
                     setLoginErrors({ email: [data.message] });
+                } else {
+                    // Handle different HTTP status codes with specific messages
+                    if (response.status === 422) {
+                        setLoginErrors({ email: ['Invalid credentials. Please check your email and password.'] });
+                    } else if (response.status === 429) {
+                        setLoginErrors({ email: ['Too many login attempts. Please try again later.'] });
+                    } else if (response.status === 401) {
+                        setLoginErrors({ email: ['Invalid email or password. Please try again.'] });
+                    } else {
+                        setLoginErrors({ email: ['Login failed. Please check your credentials and try again.'] });
+                    }
                 }
             }
         } catch (error) {
-            setLoginErrors({ email: ['An error occurred during login.'] });
+            console.error('Login error:', error);
+            setLoginErrors({ email: ['Network error. Please check your connection and try again.'] });
         } finally {
             setLoginProcessing(false);
         }
@@ -132,6 +176,15 @@ export default function FrontPage() {
     const handleLoginInputChange = (e) => {
         const { name, value, type, checked } = e.target;
         setLoginData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+        
+        // Clear field-specific errors when user starts typing
+        if (loginErrors[name]) {
+            setLoginErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[name];
+                return newErrors;
+            });
+        }
     };
 
     // Register handlers
@@ -392,38 +445,70 @@ export default function FrontPage() {
                             )}
 
                             <form onSubmit={handleLoginSubmit} className="space-y-5">
-                                {Object.keys(loginErrors).length > 0 && (
+                                {/* Global error message */}
+                                {loginErrors.email && Array.isArray(loginErrors.email) && loginErrors.email.some(msg => msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('failed') || msg.toLowerCase().includes('network')) && (
                                     <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
-                                        {Object.values(loginErrors).map((error, index) => (
-                                            <div key={index}>{error}</div>
-                                        ))}
+                                        <div className="flex items-center">
+                                            <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                            </svg>
+                                            <span>{loginErrors.email.find(msg => msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('failed') || msg.toLowerCase().includes('network'))}</span>
+                                        </div>
                                     </div>
                                 )}
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                                    <input
-                                        type="email"
-                                        name="email"
-                                        value={loginData.email}
-                                        onChange={handleLoginInputChange}
-                                        className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors px-3 py-2 border ${loginErrors.email ? 'border-red-500' : ''}`}
-                                        placeholder="Enter your email"
-                                        required
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            type="email"
+                                            name="email"
+                                            value={loginData.email}
+                                            onChange={handleLoginInputChange}
+                                            className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors px-3 py-2 border ${loginErrors.email ? 'border-red-500 focus:ring-red-500' : ''}`}
+                                            placeholder="Enter your email"
+                                            required
+                                        />
+                                        {loginErrors.email && !loginErrors.email.some(msg => msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('failed') || msg.toLowerCase().includes('network')) && (
+                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                                </svg>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {loginErrors.email && !loginErrors.email.some(msg => msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('failed') || msg.toLowerCase().includes('network')) && (
+                                        <p className="mt-1 text-sm text-red-600">
+                                            {loginErrors.email.find(msg => !msg.toLowerCase().includes('invalid') && !msg.toLowerCase().includes('failed') && !msg.toLowerCase().includes('network'))}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                                    <input
-                                        type="password"
-                                        name="password"
-                                        value={loginData.password}
-                                        onChange={handleLoginInputChange}
-                                        className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors px-3 py-2 border ${loginErrors.password ? 'border-red-500' : ''}`}
-                                        placeholder="Enter your password"
-                                        required
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            type="password"
+                                            name="password"
+                                            value={loginData.password}
+                                            onChange={handleLoginInputChange}
+                                            className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors px-3 py-2 border ${loginErrors.password ? 'border-red-500 focus:ring-red-500' : ''}`}
+                                            placeholder="Enter your password"
+                                            required
+                                        />
+                                        {loginErrors.password && (
+                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                                </svg>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {loginErrors.password && (
+                                        <p className="mt-1 text-sm text-red-600">
+                                            {loginErrors.password[0]}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="flex items-center justify-between">

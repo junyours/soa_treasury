@@ -44,8 +44,8 @@ export default function SavedStatements({ auth }) {
     const [error, setError] = useState(null);
     const [editingId, setEditingId] = useState(null);
     const [editForm, setEditForm] = useState({});
-    const [preparedBy, setPreparedBy] = useState(auth?.user?.name || '');
-    const [certifiedCorrectBy, setCertifiedCorrectBy] = useState('Lalaine M. Cariliman');
+    const [preparedBy, setPreparedBy] = useState((auth?.user?.name || '').toUpperCase());
+    const [certifiedCorrectBy, setCertifiedCorrectBy] = useState('LALAINE M. CARILIMAN');
     const [enviFee, setEnviFee] = useState(0);
     const [editForms, setEditForms] = useState([]);
     const [originalStatements, setOriginalStatements] = useState([]);
@@ -480,13 +480,18 @@ export default function SavedStatements({ auth }) {
                                         </tr>
                                     </thead>
                                     <tbody>
+                                        ${(() => {
+                                            // Calculate RPT total (sum of all statement totals, excluding environmental fee)
+                                            const rptTotal = batch.statements.reduce((sum, statement) => sum + (parseFloat(statement.total) || 0), 0);
+                                            return '';
+                                        })()}
                                         ${batch.statements.map(statement => {
                                             // Use saved values instead of recalculating
                                             const assessedValue = parseFloat(statement.assessed_value) || 0;
                                             const fullPayment = parseFloat(statement.full_payment) || 0;
                                             const penaltyAmount = parseFloat(statement.penalty_discount) || 0;
                                             const total = parseFloat(statement.total) || 0;
-                                            
+
                                             return `
                                             <tr>
                                                 <td class="border border-gray-800 px-3 py-2 text-xs" style="width: 150px; word-wrap: break-word; vertical-align: top;">${statement.declared_owner || '-'}</td>
@@ -504,7 +509,7 @@ export default function SavedStatements({ auth }) {
                                                 <td class="border border-gray-800 px-3 py-2 text-xs text-right bg-gray-100">${fullPayment > 0 ? formatCurrency(fullPayment) : ''}</td>
                                                 <td class="border border-gray-800 px-3 py-2 text-xs text-right bg-gray-100">
                                                     ${statement.penaltyDiscountType === 'tax_diff' 
-                                                        ? '<span class="text-green-700 font-medium">Tax Diff</span>' 
+                                                        ? '<span class="text-green-700 font-medium">Tax Amnesty</span>' 
                                                         : (penaltyAmount !== 0 ? formatCurrency(penaltyAmount) : '')
                                                     }
                                                 </td>
@@ -515,7 +520,16 @@ export default function SavedStatements({ auth }) {
                                     </tbody>
                                     <tfoot>
                                         <tr>
-                                            <td colSpan="9" class="border border-gray-800 px-3 py-2 text-xs font-bold text-right bg-gray-50">ENVI. FEE</td>
+                                            <td colSpan="9" class="border border-gray-800 px-3 py-2 text-xs font-bold text-right bg-yellow-50">RPT TOTAL</td>
+                                            <td class="border border-gray-800 px-3 py-2 text-xs text-right font-bold bg-yellow-50">
+                                                ${(() => {
+                                                    const rptTotal = batch.statements.reduce((sum, statement) => sum + (parseFloat(statement.total) || 0), 0);
+                                                    return rptTotal > 0 ? formatCurrency(roundToEven(rptTotal)) : '';
+                                                })()}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td colSpan="9" class="border border-gray-800 px-3 py-2 text-xs font-bold text-right bg-gray-50">ENVIRONMENTAL PROTECTION FEE</td>
                                             <td class="border border-gray-800 px-3 py-2 text-xs text-right bg-gray-50">
                                                 ${batch.envi_fee > 0 ? formatCurrency(parseFloat(batch.envi_fee)) : ''}
                                             </td>
@@ -547,15 +561,15 @@ export default function SavedStatements({ auth }) {
                                     <div class="signature-block">
                                         <p class="text-xs font-medium text-gray-900 mb-6">Prepared by:</p>
                                         <div class="signature-line">
-                                            <p class="text-sm font-bold text-gray-900 text-center">${batch.prepared_by || (batch.user_id ? `User ${batch.user_id}` : 'System Generated')}</p>
+                                            <p class="text-sm font-bold text-gray-900 text-center">${(batch.prepared_by || (batch.user_id ? `User ${batch.user_id}` : 'System Generated')).toUpperCase()}</p>
                                             <p class="text-xs text-gray-700">MTO STAFF</p>
                                         </div>
                                     </div>
                                     <div class="signature-block">
                                         <p class="text-xs font-medium text-gray-900 mb-6">Certified Correct By:</p>
                                         <div class="signature-line">
-                                            <p class="text-sm font-bold text-gray-900 text-center">${batch.certified_by || 'Lalaine M. Cariliman'}</p>
-                                            <p class="text-xs text-gray-700">Acting Municipal Treasurer</p>
+                                            <p class="text-sm font-bold text-gray-900 text-center">${(batch.certified_by || 'Lalaine M. Cariliman').toUpperCase()}</p>
+                                            <p class="text-xs text-gray-700">ACTING MUNICIPAL TREASURER</p>
                                         </div>
                                     </div>
                                 </div>
@@ -981,8 +995,8 @@ export default function SavedStatements({ auth }) {
         })));
 
         // Set the prepared_by and certified_by state from the database
-        setPreparedBy(statementsToEdit[0].prepared_by || auth?.user?.name || '');
-        setCertifiedCorrectBy(statementsToEdit[0].certified_by || 'Lalaine M. Cariliman');
+        setPreparedBy((statementsToEdit[0].prepared_by || auth?.user?.name || '').toUpperCase());
+        setCertifiedCorrectBy((statementsToEdit[0].certified_by || 'Lalaine M. Cariliman').toUpperCase());
         setShowEditModal(true);
     };
 
@@ -1481,11 +1495,11 @@ export default function SavedStatements({ auth }) {
             } else if (year === currentYear - 2) {
                 // Two years ago: 48% + 2% per month of current year
                 return { years: 1, penaltyRate: 0.48 + (currentMonth * 0.02) };
-            } else if (year === currentYear - 3) {
-                // Three years ago: 72% + 2% per month of current year
+            } else if (year <= currentYear - 3) {
+                // Three or more years ago: 72%
                 return { years: 1, penaltyRate: 0.72 };
             }
-            
+
             return { years: 1, penaltyRate: 0 };
         }
         
@@ -1494,7 +1508,7 @@ export default function SavedStatements({ auth }) {
 
     // Calculate penalty rates for tax amnesty (April-July 2026)
     const calculateTaxAmnestyPenalty = (paymentYear) => {
-        if (!paymentYear) return { years: 1, penaltyRate: 0 };
+        if (!paymentYear) return { years: 0, penaltyRate: 0 };
         
         const currentDate = new Date();
         const currentYear = currentDate.getFullYear();
@@ -1502,29 +1516,67 @@ export default function SavedStatements({ auth }) {
         
         // Only apply tax amnesty for April-July 2026
         if (currentYear === 2026 && currentMonth >= 4 && currentMonth <= 7) {
-            const year = parseInt(paymentYear);
+            // Handle year range (e.g., "2021-2023")
+            if (paymentYear.includes('-')) {
+                const [startYear, endYear] = paymentYear.split('-').map(y => parseInt(y.trim()));
+                if (!isNaN(startYear) && !isNaN(endYear)) {
+                    const years = endYear - startYear + 1;
+                    // Calculate tax amnesty penalty rates based on the most recent year in range
+                    const mostRecentYear = endYear;
+                    let penaltyRate = 0;
+                    
+                    if (mostRecentYear === 2026) {
+                        // 2026: Different penalty rates per month
+                        if (currentMonth === 4) penaltyRate = 0.08;      // April: 8%
+                        else if (currentMonth === 5) penaltyRate = 0.10;  // May: 10%
+                        else if (currentMonth === 6) penaltyRate = 0.12;  // June: 12%
+                        else if (currentMonth === 7) penaltyRate = 0.14;  // July: 14%
+                    } else if (mostRecentYear === 2025) {
+                        // 2025: Different penalty rates per month
+                        if (currentMonth === 4) penaltyRate = 0.32;      // April: 32%
+                        else if (currentMonth === 5) penaltyRate = 0.34;  // May: 34%
+                        else if (currentMonth === 6) penaltyRate = 0.36;  // June: 36%
+                        else if (currentMonth === 7) penaltyRate = 0.36;  // July: 36%
+                    } else if (mostRecentYear === 2024) {
+                        // 2024: Different penalty rates per month
+                        if (currentMonth === 4) penaltyRate = 0.44;      // April: 44%
+                        else if (currentMonth === 5) penaltyRate = 0.46;  // May: 46%
+                        else if (currentMonth === 6) penaltyRate = 0.48;  // June: 48%
+                        else if (currentMonth === 7) penaltyRate = 0.48;  // July: 48%
+                    } else if (mostRecentYear <= 2023) {
+                        // 2023 and below: No penalty
+                        penaltyRate = 0;
+                    }
+                    
+                    return { years, penaltyRate };
+                }
+            }
             
-            if (year === 2026) {
-                // 2026: Different penalty rates per month
-                if (currentMonth === 4) return { years: 1, penaltyRate: 0.08 };      // April: 8%
-                if (currentMonth === 5) return { years: 1, penaltyRate: 0.10 };      // May: 10%
-                if (currentMonth === 6) return { years: 1, penaltyRate: 0.12 };      // June: 12%
-                if (currentMonth === 7) return { years: 1, penaltyRate: 0.14 };      // July: 14%
-            } else if (year === 2025) {
-                // 2025: Different penalty rates per month
-                if (currentMonth === 4) return { years: 1, penaltyRate: 0.32 };      // April: 32%
-                if (currentMonth === 5) return { years: 1, penaltyRate: 0.34 };      // May: 34%
-                if (currentMonth === 6) return { years: 1, penaltyRate: 0.36 };      // June: 36%
-                if (currentMonth === 7) return { years: 1, penaltyRate: 0.36 };      // July: 36%
-            } else if (year === 2024) {
-                // 2024: Different penalty rates per month
-                if (currentMonth === 4) return { years: 1, penaltyRate: 0.44 };      // April: 44%
-                if (currentMonth === 5) return { years: 1, penaltyRate: 0.46 };      // May: 46%
-                if (currentMonth === 6) return { years: 1, penaltyRate: 0.48 };      // June: 48%
-                if (currentMonth === 7) return { years: 1, penaltyRate: 0.48 };      // July: 48%
-            } else if (year <= 2023) {
-                // 2023 and below: No penalty
-                return { years: 1, penaltyRate: 0 };
+            // Handle single year
+            const year = parseInt(paymentYear);
+            if (!isNaN(year)) {
+                if (year === 2026) {
+                    // 2026: Different penalty rates per month
+                    if (currentMonth === 4) return { years: 1, penaltyRate: 0.08 };      // April: 8%
+                    if (currentMonth === 5) return { years: 1, penaltyRate: 0.10 };      // May: 10%
+                    if (currentMonth === 6) return { years: 1, penaltyRate: 0.12 };      // June: 12%
+                    if (currentMonth === 7) return { years: 1, penaltyRate: 0.14 };      // July: 14%
+                } else if (year === 2025) {
+                    // 2025: Different penalty rates per month
+                    if (currentMonth === 4) return { years: 1, penaltyRate: 0.32 };      // April: 32%
+                    if (currentMonth === 5) return { years: 1, penaltyRate: 0.34 };      // May: 34%
+                    if (currentMonth === 6) return { years: 1, penaltyRate: 0.36 };      // June: 36%
+                    if (currentMonth === 7) return { years: 1, penaltyRate: 0.36 };      // July: 36%
+                } else if (year === 2024) {
+                    // 2024: Different penalty rates per month
+                    if (currentMonth === 4) return { years: 1, penaltyRate: 0.44 };      // April: 44%
+                    if (currentMonth === 5) return { years: 1, penaltyRate: 0.46 };      // May: 46%
+                    if (currentMonth === 6) return { years: 1, penaltyRate: 0.48 };      // June: 48%
+                    if (currentMonth === 7) return { years: 1, penaltyRate: 0.48 };      // July: 48%
+                } else if (year <= 2023) {
+                    // 2023 and below: No penalty
+                    return { years: 1, penaltyRate: 0 };
+                }
             }
         }
         
@@ -2116,7 +2168,7 @@ export default function SavedStatements({ auth }) {
                                                                         </td>
                                                                         <td className="border border-gray-800 px-3 py-2 text-xs text-right bg-gray-100 font-medium">
                                                                             {statement.penaltyDiscountType === 'tax_diff' 
-                                                                                ? <span className="text-green-700 font-medium">Tax Diff</span> 
+                                                                                ? <span className="text-green-700 font-medium">Tax Amnesty</span> 
                                                                                 : (penaltyAmount !== 0 ? formatCurrency(penaltyAmount) : '')
                                                                             }
                                                                         </td>
@@ -2129,7 +2181,16 @@ export default function SavedStatements({ auth }) {
                                                             </tbody>
                                                             <tfoot>
                                                                 <tr>
-                                                                    <td colSpan="9" className="border border-gray-800 px-3 py-2 text-xs font-bold text-right bg-gray-50">ENVI. FEE</td>
+                                                                    <td colSpan="9" className="border border-gray-800 px-3 py-2 text-xs font-bold text-right bg-yellow-50">RPT TOTAL</td>
+                                                                    <td className="border border-gray-800 px-3 py-2 text-xs text-right font-bold bg-yellow-50">
+                                                                        {(() => {
+                                                                            const rptTotal = batch.statements.reduce((sum, statement) => sum + (parseFloat(statement.total) || 0), 0);
+                                                                            return rptTotal > 0 ? formatCurrency(roundToEven(rptTotal)) : '';
+                                                                        })()}
+                                                                    </td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td colSpan="9" className="border border-gray-800 px-3 py-2 text-xs font-bold text-right bg-gray-50">ENVIRONMENTAL PROTECTION FEE</td>
                                                                     <td className="border border-gray-800 px-3 py-2 text-xs text-right bg-gray-50">
                                                                         {batch.envi_fee > 0 ? formatCurrency(parseFloat(batch.envi_fee)) : ''}
                                                                     </td>
@@ -2154,15 +2215,15 @@ export default function SavedStatements({ auth }) {
                                                         <div className="text-center w-5/12">
                                                             <p className="text-xs font-medium text-gray-900 mb-6">Prepared by:</p>
                                                             <div className="border-t border-gray-800 pt-2">
-                                                                <p className="text-sm font-bold text-gray-900">{batch.statements[0]?.prepared_by || 'Unknown User'}</p>
+                                                                <p className="text-sm font-bold text-gray-900">{(batch.statements[0]?.prepared_by || 'Unknown User').toUpperCase()}</p>
                                                                 <p className="text-xs text-gray-700">MTO STAFF</p>
                                                             </div>
                                                         </div>
                                                         <div className="text-center w-5/12">
                                                             <p className="text-xs font-medium text-gray-900 mb-6">Certified Correct By:</p>
                                                             <div className="border-t border-gray-800 pt-2">
-                                                                <p className="text-sm font-bold text-gray-900">{batch.statements[0]?.certified_by || 'Lalaine M. Cariliman'}</p>
-                                                                <p className="text-xs text-gray-700">Acting Municipal Treasurer</p>
+                                                                <p className="text-sm font-bold text-gray-900">{(batch.statements[0]?.certified_by || 'Lalaine M. Cariliman').toUpperCase()}</p>
+                                                                <p className="text-xs text-gray-700">ACTING MUNICIPAL TREASURER</p>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -2310,6 +2371,14 @@ export default function SavedStatements({ auth }) {
                                         </svg>
                                         Edit Statements
                                     </h2>
+                                    {taxAmnestyEnabled && (
+                                        <div className="flex items-center space-x-2 text-sm font-medium bg-amber-100 text-amber-800 px-3 py-1.5 rounded-full border-2 border-amber-300 animate-pulse">
+                                            <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <span>TAX AMNESTY ACTIVE</span>
+                                        </div>
+                                    )}
                                     <div className="flex items-center space-x-2 text-sm text-gray-600 bg-white px-3 py-1 rounded-full border border-gray-200">
                                         <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h1m1-4v4m-1 4H8m8 0H8a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V6a2 2 0 00-2-2z" />
@@ -2432,8 +2501,8 @@ export default function SavedStatements({ auth }) {
                                                             <input
                                                                 type="text"
                                                                 step="0.01"
-                                                                value={form.assessed_value ? formatAssessedValue(parseFloat(form.assessed_value)) : ''}
-                                                                onChange={(e) => updateFormField(index, 'assessed_value', parseFloat(e.target.value) || 0)}
+                                                                value={form.assessed_value || ''}
+                                                                onChange={(e) => updateFormField(index, 'assessed_value', parseFloat(e.target.value.replace(/,/g, '')) || 0)}
                                                                 onContextMenu={(e) => handleContextMenu(e, index)}
                                                                 className="w-full px-2 py-1 text-xs text-right border-0 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-gray-50 transition-all hover:bg-gray-100"
                                                                 placeholder="0"
@@ -2476,7 +2545,7 @@ export default function SavedStatements({ auth }) {
                                                     {form.penaltyDiscountType === 'tax_diff' ? (
                                                         <input
                                                             type="number"
-                                                            value={form.full_payment !== 0 ? form.full_payment : ''}
+                                                            value={form.full_payment !== 0 ? parseFloat(form.full_payment).toFixed(2) : ''}
                                                             onChange={(e) => {
                                                                 const numValue = parseFloat(e.target.value) || 0;
                                                                 updateFormField(index, 'full_payment', numValue);
@@ -2498,7 +2567,7 @@ export default function SavedStatements({ auth }) {
                                                     <div className="space-y-1">
                                                         {form.penaltyDiscountType === 'tax_diff' ? (
                                                             <div className="flex items-center justify-between p-1 bg-green-50 rounded border border-green-200">
-                                                                <span className="text-xs font-medium text-green-700">Tax Diff</span>
+                                                                <span className="text-xs font-medium text-green-700">{taxAmnestyEnabled ? 'Tax Amnesty' : 'Tax Diff'}</span>
                                                                 <button
                                                                     onClick={() => handleRemoveTaxDiff(index)}
                                                                     className="text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
@@ -2526,7 +2595,7 @@ export default function SavedStatements({ auth }) {
                                                                     className="text-xs text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap transition-colors font-medium"
                                                                     title="Remove penalty/discount calculation"
                                                                 >
-                                                                    Tax Diff
+                                                                    {taxAmnestyEnabled ? 'Tax Amnesty' : 'Tax Diff'}
                                                                 </button>
                                                             </div>
                                                         )}
@@ -2570,7 +2639,14 @@ export default function SavedStatements({ auth }) {
                                     {/* Footer Totals */}
                                     <tfoot>
                                         <tr>
-                                            <td colSpan="9" className="border border-gray-800 px-3 py-2 text-xs font-bold text-right bg-gray-50">ENVI. FEE</td>
+                                            <td colSpan="9" className="border border-gray-800 px-3 py-2 text-xs font-bold text-right bg-yellow-50">RPT TOTAL</td>
+                                            <td className="border border-gray-800 px-3 py-2 text-xs text-right font-bold bg-yellow-50">
+                                                {formatCurrency(roundToEven(editForms.reduce((sum, form) => sum + (parseFloat(form.total) || 0), 0)))}
+                                            </td>
+                                            <td className="border border-gray-800 px-3 py-2 bg-yellow-50"></td>
+                                        </tr>
+                                        <tr>
+                                            <td colSpan="9" className="border border-gray-800 px-3 py-2 text-xs font-bold text-right bg-gray-50">ENVIRONMENTAL PROTECTION FEE</td>
                                             <td className="border border-gray-800 px-3 py-2 text-xs relative bg-gray-50">
                                                 <input
                                                     type="text"
@@ -2626,7 +2702,7 @@ export default function SavedStatements({ auth }) {
                                         <input
                                             type="text"
                                             value={preparedBy}
-                                            onChange={(e) => setPreparedBy(e.target.value)}
+                                            onChange={(e) => setPreparedBy(e.target.value.toUpperCase())}
                                             className="text-sm font-bold text-gray-900 text-center bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded w-full"
                                             placeholder="Enter name"
                                         />
@@ -2639,11 +2715,11 @@ export default function SavedStatements({ auth }) {
                                         <input
                                             type="text"
                                             value={certifiedCorrectBy}
-                                            onChange={(e) => setCertifiedCorrectBy(e.target.value)}
+                                            onChange={(e) => setCertifiedCorrectBy(e.target.value.toUpperCase())}
                                             className="text-sm font-bold text-gray-900 text-center bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded w-full"
                                             placeholder="Enter name"
                                         />
-                                        <p className="text-xs text-gray-700">Acting Municipal Treasurer</p>
+                                        <p className="text-xs text-gray-700">ACTING MUNICIPAL TREASURER</p>
                                     </div>
                                 </div>
                             </div>

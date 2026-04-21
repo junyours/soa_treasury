@@ -26,7 +26,7 @@ class VerifyEmailController extends Controller
         
         if ($user->hasVerifiedEmail()) {
             \Log::info('User already verified, redirecting to front page');
-            return redirect(route('front') . '?login=true&verified=true');
+            return redirect(route('front') . '?email_verified=true');
         }
 
         if ($user->markEmailAsVerified()) {
@@ -34,7 +34,7 @@ class VerifyEmailController extends Controller
             event(new Verified($user));
         }
 
-        $redirectUrl = route('front') . '?login=true&verified=true';
+        $redirectUrl = route('front') . '?email_verified=true';
         \Log::info('Redirecting to: ' . $redirectUrl);
         
         return redirect($redirectUrl);

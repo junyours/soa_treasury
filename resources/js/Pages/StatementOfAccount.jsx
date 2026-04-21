@@ -1317,32 +1317,39 @@ export default function StatementOfAccount({ auth }) {
                             </div>
 
                             {/* Signature Section */}
-                            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="text-center">
-                                    <p className="text-xs font-medium text-gray-900 mb-6">Prepared by:</p>
-                                    <div className="border-t border-gray-800 pt-2">
-                                        <input
-                                            type="text"
-                                            value={preparedBy}
-                                            onChange={(e) => setPreparedBy(e.target.value.toUpperCase())}
-                                            className="text-sm font-bold text-gray-900 text-center bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded w-full"
-                                            placeholder="Enter name"
-                                        />
-                                        <p className="text-xs text-gray-700">MTO STAFF</p>
+                            <div className="mt-12 px-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
+                                    
+                                    {/* Prepared By */}
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-700 mb-6 ml-12">Prepared by:</p>
+                                        <div className="text-center space-y-1">
+                                            <input
+                                                type="text"
+                                                value={preparedBy}
+                                                onChange={(e) => setPreparedBy(e.target.value.toUpperCase())}
+                                                className="w-64 text-base font-semibold text-gray-900 bg-transparent border-0 border-b-2 border-gray-400 focus:outline-none focus:border-blue-600 text-center pb-1 transition-colors"
+                                                
+                                            />
+                                            <p className="text-sm text-gray-600 mt-8">MTO STAFF</p>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="text-center">
-                                    <p className="text-xs font-medium text-gray-900 mb-6">Certified Correct By:</p>
-                                    <div className="border-t border-gray-800 pt-2">
-                                        <input
-                                            type="text"
-                                            value={certifiedCorrectBy}
-                                            onChange={(e) => setCertifiedCorrectBy(e.target.value.toUpperCase())}
-                                            className="text-sm font-bold text-gray-900 text-center bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded w-full"
-                                            placeholder="Enter name"
-                                        />
-                                        <p className="text-xs text-gray-700">ACTING MUNICIPAL TREASURER</p>
+
+                                    {/* Certified Correct By */}
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-700 mb-6">Certified Correct By:</p>
+                                        <div className="text-center space-y-1">
+                                            <input
+                                                type="text"
+                                                value={certifiedCorrectBy}
+                                                onChange={(e) => setCertifiedCorrectBy(e.target.value.toUpperCase())}
+                                                className="w-64 text-base font-semibold text-gray-900 bg-transparent border-0 border-b-2 border-gray-400 focus:outline-none focus:border-blue-600 text-center pb-1 transition-colors"
+                                                placeholder="LALAINE M. CARILIMAN"
+                                            />
+                                            <p className="text-sm text-gray-600 mt-8">ACTING MUNICIPAL TREASURER</p>
+                                        </div>
                                     </div>
+
                                 </div>
                             </div>
 

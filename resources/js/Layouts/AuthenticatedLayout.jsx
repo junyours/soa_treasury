@@ -2,13 +2,38 @@ import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import { Link, usePage, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function AuthenticatedLayout({ header, children }) {
     const user = usePage().props.auth.user;
 
     const [showingNavigationDropdown, setShowingNavigationDropdown] =
         useState(false);
+    const [pendingCount, setPendingCount] = useState(0);
+
+    // Fetch pending user count for admin
+    useEffect(() => {
+        if (user.role === 'admin') {
+            fetch('/admin/pending-count', {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Unauthorized');
+                    }
+                    return response.json();
+                })
+                .then(data => setPendingCount(data.count || 0))
+                .catch(error => {
+                    console.error('Error fetching pending count:', error);
+                    setPendingCount(0);
+                });
+        }
+    }, [user.role]);
 
     // Clear statement of account data when user logs out
     const handleLogout = (e) => {
@@ -49,6 +74,24 @@ export default function AuthenticatedLayout({ header, children }) {
                     </div>
                     <div className="mt-8 flex-1 flex flex-col">
                         <nav className="flex-1 px-2 space-y-1">
+                            {/* Admin Dashboard - Only visible to admin users */}
+                            {user.role === 'admin' && (
+                                <NavLink
+                                    href={route('admin.dashboard')}
+                                    active={route().current('admin.dashboard')}
+                                    className="group flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 text-gray-600 hover:text-purple-600 hover:bg-purple-50/70"
+                                >
+                                    <svg className="text-gray-400 mr-3 h-5 w-5 group-hover:text-purple-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                    </svg>
+                                    <span className="group-hover:translate-x-0.5 transition-transform">Admin Dashboard</span>
+                                    {pendingCount > 0 && (
+                                        <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full animate-pulse">
+                                            {pendingCount}
+                                        </span>
+                                    )}
+                                </NavLink>
+                            )}
                             <NavLink
                                 href={route('statement-of-account')}
                                 active={route().current('statement-of-account')}

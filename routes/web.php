@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StatementOfAccountController;
 use Illuminate\Foundation\Application;
@@ -9,6 +10,13 @@ use Inertia\Inertia;
 Route::get('/', function () {
     return Inertia::render('FrontPage');
 })->name('front');
+
+// Public CSRF token refresh endpoint
+Route::get('/csrf-token', function() {
+    return response()->json([
+        'token' => csrf_token()
+    ]);
+});
 
 
 Route::get('/statement-of-account', function () {
@@ -41,6 +49,14 @@ Route::middleware(['web'])->group(function () {
             'csrf_token' => csrf_token()
         ]);
     })->middleware(['auth', 'verified']);
+});
+
+// Admin routes
+Route::middleware(['web', 'auth'])->group(function () {
+    Route::get('/admin/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
+    Route::post('/admin/users/{user}/approve', [AdminController::class, 'approveUser'])->name('admin.users.approve');
+    Route::post('/admin/users/{user}/decline', [AdminController::class, 'declineUser'])->name('admin.users.decline');
+    Route::get('/admin/pending-count', [AdminController::class, 'getPendingCount'])->name('admin.pending-count');
 });
 
 require __DIR__.'/auth.php';

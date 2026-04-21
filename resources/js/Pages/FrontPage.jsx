@@ -42,14 +42,31 @@ export default function FrontPage() {
         const urlParams = new URLSearchParams(window.location.search);
         const loginParam = urlParams.get('login');
         const verifiedParam = urlParams.get('verified');
+        const emailVerifiedParam = urlParams.get('email_verified');
+        const verifyEmailParam = urlParams.get('verify_email');
         
-        console.log('FrontPage Debug - URL params:', { loginParam, verifiedParam });
+        console.log('FrontPage Debug - URL params:', { loginParam, verifiedParam, emailVerifiedParam, verifyEmailParam });
         console.log('FrontPage Debug - Full URL:', window.location.href);
         
         if (loginParam === 'true' && verifiedParam === 'true') {
             console.log('FrontPage Debug - Opening login modal with verification success');
             setJustVerified(true);
             setShowLoginModal(true);
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        
+        // Handle email verification (new flow - requires admin approval)
+        if (emailVerifiedParam === 'true') {
+            console.log('FrontPage Debug - Email verified, showing approval pending modal');
+            setShowVerifyEmailModal(true);
+            setVerifyStatus('Email verified successfully! Your account is now pending administrator approval. You will receive an email once your account is approved.');
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        
+        // Handle email verification prompt (after registration)
+        if (verifyEmailParam === 'true') {
+            console.log('FrontPage Debug - Showing email verification prompt');
+            setShowVerifyEmailModal(true);
             window.history.replaceState({}, document.title, window.location.pathname);
         }
         
@@ -100,77 +117,124 @@ export default function FrontPage() {
         
         setLoginProcessing(true);
 
-        try {
-            // Use FormData for proper Laravel form submission
-            const formData = new FormData();
-            formData.append('email', loginData.email);
-            formData.append('password', loginData.password);
-            if (loginData.remember) {
-                formData.append('remember', 'on');
-            }
-
-            const response = await fetch('/login', {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                    'Accept': 'application/json',
-                },
-                body: formData
-            });
-
-            if (response.ok) {
-                setShowLoginModal(false);
-                router.visit('/statement-of-account');
-            } else {
-                // Try to parse as JSON first
-                let data;
-                try {
-                    data = await response.json();
-                } catch {
-                    // If JSON parsing fails, try to extract errors from HTML response
-                    const text = await response.text();
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(text, 'text/html');
-                    const errorElements = doc.querySelectorAll('.text-red-600, .alert-danger');
-                    
-                    if (errorElements.length > 0) {
-                        const errors = {};
-                        errorElements.forEach(el => {
-                            const text = el.textContent.trim();
-                            if (text && !text.includes('The password field is required.') && !text.includes('The email field is required.')) {
-                                errors.email = [text];
-                            }
-                        });
-                        setLoginErrors(errors);
-                    } else {
-                        setLoginErrors({ email: ['Login failed. Please check your email and password and try again.'] });
+        const attemptLogin = async (useFreshToken = false) => {
+            try {
+                // Get CSRF token
+                let csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                
+                // If we need a fresh token, refresh it first
+                if (useFreshToken) {
+                    const freshToken = await refreshCsrfToken();
+                    if (freshToken) {
+                        csrfToken = freshToken;
                     }
-                    return;
                 }
                 
-                if (data.errors) {
-                    setLoginErrors(data.errors);
-                } else if (data.message) {
-                    setLoginErrors({ email: [data.message] });
-                } else {
-                    // Handle different HTTP status codes with specific messages
-                    if (response.status === 422) {
-                        setLoginErrors({ email: ['Invalid credentials. Please check your email and password.'] });
-                    } else if (response.status === 429) {
-                        setLoginErrors({ email: ['Too many login attempts. Please try again later.'] });
-                    } else if (response.status === 401) {
-                        setLoginErrors({ email: ['Invalid email or password. Please try again.'] });
-                    } else {
-                        setLoginErrors({ email: ['Login failed. Please check your credentials and try again.'] });
-                    }
+                if (!csrfToken) {
+                    setLoginErrors({ email: ['Security token missing. Please refresh the page and try again.'] });
+                    return false;
                 }
+
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: loginData.email,
+                        password: loginData.password,
+                        remember: loginData.remember
+                    })
+                });
+
+                if (response.ok) {
+                    setShowLoginModal(false);
+                    router.visit('/statement-of-account');
+                    return true;
+                } else {
+                    // Try to parse as JSON first
+                    let data;
+                    try {
+                        data = await response.json();
+                    } catch {
+                        // If JSON parsing fails, try to extract errors from HTML response
+                        const text = await response.text();
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(text, 'text/html');
+                        const errorElements = doc.querySelectorAll('.text-red-600, .alert-danger');
+                        
+                        if (errorElements.length > 0) {
+                            const errors = {};
+                            errorElements.forEach(el => {
+                                const text = el.textContent.trim();
+                                if (text && !text.includes('The password field is required.') && !text.includes('The email field is required.')) {
+                                    errors.email = [text];
+                                }
+                            });
+                            setLoginErrors(errors);
+                        } else {
+                            setLoginErrors({ email: ['Login failed. Please check your email and password and try again.'] });
+                        }
+                        return false;
+                    }
+                    
+                    if (data.errors) {
+                        setLoginErrors(data.errors);
+                    } else if (data.message) {
+                        // Check for CSRF mismatch specifically
+                        if (data.message.includes('CSRF token mismatch') || data.message.includes('csrf')) {
+                            if (!useFreshToken) {
+                                // Try again with fresh token
+                                return await attemptLogin(true);
+                            } else {
+                                setLoginErrors({ email: ['Security token error. Please refresh the page and try again.'] });
+                            }
+                        }
+                        // Check for specific approval-related messages
+                        else if (data.message.includes('pending approval')) {
+                            setLoginErrors({ 
+                                email: ['Your account is pending approval by the administrator. You will receive an email once your account is approved.'],
+                                approvalStatus: 'pending'
+                            });
+                        } else if (data.message.includes('declined')) {
+                            setLoginErrors({ 
+                                email: [data.message],
+                                approvalStatus: 'declined'
+                            });
+                        } else {
+                            setLoginErrors({ email: [data.message] });
+                        }
+                    } else {
+                        // Handle different HTTP status codes with specific messages
+                        if (response.status === 419) { // CSRF token mismatch
+                            if (!useFreshToken) {
+                                return await attemptLogin(true);
+                            } else {
+                                setLoginErrors({ email: ['Security token error. Please refresh the page and try again.'] });
+                            }
+                        } else if (response.status === 422) {
+                            setLoginErrors({ email: ['Invalid credentials. Please check your email and password.'] });
+                        } else if (response.status === 429) {
+                            setLoginErrors({ email: ['Too many login attempts. Please try again later.'] });
+                        } else if (response.status === 401) {
+                            setLoginErrors({ email: ['Invalid email or password. Please try again.'] });
+                        } else {
+                            setLoginErrors({ email: ['Login failed. Please check your credentials and try again.'] });
+                        }
+                    }
+                    return false;
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                setLoginErrors({ email: ['Network error. Please check your connection and try again.'] });
+                return false;
             }
-        } catch (error) {
-            console.error('Login error:', error);
-            setLoginErrors({ email: ['Network error. Please check your connection and try again.'] });
-        } finally {
-            setLoginProcessing(false);
-        }
+        };
+
+        await attemptLogin();
+        setLoginProcessing(false);
     };
 
     const handleLoginInputChange = (e) => {
@@ -281,6 +345,32 @@ export default function FrontPage() {
         setResetData(prev => ({ ...prev, [name]: value }));
     };
 
+    // Refresh CSRF token
+    const refreshCsrfToken = async () => {
+        try {
+            const response = await fetch('/csrf-token', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                // Update the meta tag with fresh token
+                const metaTag = document.querySelector('meta[name="csrf-token"]');
+                if (metaTag && data.token) {
+                    metaTag.setAttribute('content', data.token);
+                    return data.token;
+                }
+            }
+            return null;
+        } catch (error) {
+            console.error('Error refreshing CSRF token:', error);
+            return null;
+        }
+    };
+
     // Resend verification email
     const handleResendVerification = async () => {
         try {
@@ -369,11 +459,11 @@ export default function FrontPage() {
                                 
                                 {/* Main Title */}
                                 <div className="space-y-2">
-                                    <h1 className="text-7xl md:text-8xl lg:text-9xl font-black text-gray-900 leading-none tracking-tight">
-                                        Municipal
+                                    <h1 className="text-7xl md:text-8xl lg:text-8xl font-black text-gray-900 leading-none tracking-tight">
+                                        MUNICIPAL
                                     </h1>
-                                    <h2 className="text-6xl md:text-7xl lg:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 leading-none tracking-tight">
-                                        Treasury Office
+                                    <h2 className="text-6xl md:text-7xl lg:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 leading-none tracking-tight">
+                                        TREASURY OFFICE
                                     </h2>
                                 </div>
                                 
@@ -389,12 +479,11 @@ export default function FrontPage() {
                     </div>
                 </div>
 
-
                 {/* Footer */}
                 <footer className="bg-gray-900 text-white py-12">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="text-center">
-                            <div className="flex justify-center items-center mb-6 space-x-3">
+                            {/* <div className="flex justify-center items-center mb-6 space-x-3">
                                 <img 
                                     src="/images/Opol-logo real.png" 
                                     alt="Municipality of Opol Logo" 
@@ -404,7 +493,7 @@ export default function FrontPage() {
                                     <span className="font-semibold">Municipality of Opol</span>
                                     <div className="text-sm text-gray-400">Treasury Office</div>
                                 </div>
-                            </div>
+                            </div> */}
                             <p className="text-gray-400 mb-2">
                                 © 2026 Municipal Treasury Office. Province of Misamis Oriental
                             </p>
@@ -445,14 +534,52 @@ export default function FrontPage() {
                             )}
 
                             <form onSubmit={handleLoginSubmit} className="space-y-5">
-                                {/* Global error message */}
-                                {loginErrors.email && Array.isArray(loginErrors.email) && loginErrors.email.some(msg => msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('failed') || msg.toLowerCase().includes('network')) && (
+                                {/* Approval Status Messages */}
+                                {loginErrors.approvalStatus === 'pending' && (
+                                    <div className="rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3 text-sm text-yellow-800">
+                                        <div className="flex items-center">
+                                            <svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <div>
+                                                <p className="font-medium">Account Pending Approval</p>
+                                                <p className="text-xs mt-1">Your account is waiting for administrator approval. You'll be notified once approved.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {loginErrors.approvalStatus === 'declined' && (
                                     <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
                                         <div className="flex items-center">
                                             <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                                             </svg>
-                                            <span>{loginErrors.email.find(msg => msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('failed') || msg.toLowerCase().includes('network'))}</span>
+                                            <div>
+                                                <p className="font-medium">Account Declined</p>
+                                                <p className="text-xs mt-1">{loginErrors.email[0]}</p>
+                                                <p className="text-xs mt-2 text-blue-700">
+                                                    You can register again with the same email address.
+                                                    <button
+                                                        onClick={() => {setShowLoginModal(false); setShowRegisterModal(true);}}
+                                                        className="ml-1 underline hover:text-blue-800 transition-colors"
+                                                    >
+                                                        Click here to register
+                                                    </button>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Global error message */}
+                                {loginErrors.email && Array.isArray(loginErrors.email) && loginErrors.email.some(msg => msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('failed') || msg.toLowerCase().includes('network') || msg.toLowerCase().includes('csrf') || msg.toLowerCase().includes('security')) && !loginErrors.approvalStatus && (
+                                    <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
+                                        <div className="flex items-center">
+                                            <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                            </svg>
+                                            <span>{loginErrors.email.find(msg => msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('failed') || msg.toLowerCase().includes('network') || msg.toLowerCase().includes('csrf') || msg.toLowerCase().includes('security'))}</span>
                                         </div>
                                     </div>
                                 )}
@@ -554,7 +681,7 @@ export default function FrontPage() {
                                     </button>
                                 </p>
                             </div>
-                            
+
                             <button
                                 onClick={() => setShowLoginModal(false)}
                                 className="mt-4 w-full text-gray-500 hover:text-gray-700 text-sm"
@@ -761,47 +888,79 @@ export default function FrontPage() {
                                     alt="Logo" 
                                     className="h-12 w-12 mx-auto mb-4"
                                 />
-                                <h2 className="text-2xl font-bold text-gray-900 mb-2">Verify Your Email</h2>
-                                <p className="text-gray-600">Check your inbox for verification link</p>
+                                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                                    {verifyStatus && verifyStatus.includes('pending administrator approval') ? 'Email Verified' : 'Verify Your Email'}
+                                </h2>
+                                <p className="text-gray-600">
+                                    {verifyStatus && verifyStatus.includes('pending administrator approval') 
+                                        ? 'Your email has been successfully verified' 
+                                        : 'Check your inbox for verification link'}
+                                </p>
                             </div>
 
                             <div className="text-center space-y-4">
-                                <div className="bg-blue-50 rounded-lg p-4">
-                                    <svg className="w-12 h-12 text-blue-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                    </svg>
-                                    <p className="text-sm text-gray-700">
-                                        We've sent a verification email to your registered email address.
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-2">
-                                        Please check your inbox and click the verification link to continue.
-                                    </p>
-                                </div>
+                                {verifyStatus && verifyStatus.includes('pending administrator approval') ? (
+                                    <div className="bg-yellow-50 rounded-lg p-4">
+                                        <svg className="w-12 h-12 text-yellow-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <p className="text-sm text-gray-700 font-medium">
+                                            Email verified successfully!
+                                        </p>
+                                        <p className="text-xs text-gray-600 mt-2">
+                                            Your account is now pending administrator approval. You will receive an email once your account is approved.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="bg-blue-50 rounded-lg p-4">
+                                        <svg className="w-12 h-12 text-blue-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                        <p className="text-sm text-gray-700">
+                                            We've sent a verification email to your registered email address.
+                                        </p>
+                                        <p className="text-xs text-gray-500 mt-2">
+                                            Please check your inbox and click verification link to continue.
+                                        </p>
+                                    </div>
+                                )}
 
                                 {verifyStatus && (
-                                    <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+                                    <div className={`rounded-lg border px-4 py-3 text-sm ${
+                                        verifyStatus.includes('pending administrator approval') 
+                                            ? 'bg-yellow-50 border-yellow-200 text-yellow-800' 
+                                            : 'bg-green-50 border-green-200 text-green-800'
+                                    }`}>
                                         {verifyStatus}
                                     </div>
                                 )}
 
-                                <button
-                                    onClick={handleResendVerification}
-                                    className="w-full justify-center py-2 text-base font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 transition-colors text-white"
-                                >
-                                    Resend Verification Email
-                                </button>
+                                {!verifyStatus || !verifyStatus.includes('pending administrator approval') ? (
+                                    <>
+                                        <button
+                                            onClick={handleResendVerification}
+                                            className="w-full justify-center py-2 text-base font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 transition-colors text-white"
+                                        >
+                                            Resend Verification Email
+                                        </button>
 
-                                <div className="text-sm text-gray-600">
-                                    Didn't receive the email? Check your spam folder or request a new verification link.
-                                </div>
+                                        <div className="text-sm text-gray-600">
+                                            Didn't receive the email? Check your spam folder or request a new verification link.
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="text-sm text-gray-600">
+                                        You can close this window and wait for the administrator to approve your account.
+                                    </div>
+                                )}
                             </div>
 
                             <div className="mt-6 text-center">
                                 <button
-                                    onClick={() => {setShowVerifyEmailModal(false); setShowLoginModal(true);}}
+                                    onClick={() => setShowVerifyEmailModal(false)}
                                     className="text-sm text-indigo-600 hover:text-indigo-500 transition-colors"
                                 >
-                                    Back to login
+                                    {verifyStatus && verifyStatus.includes('pending administrator approval') ? 'Close' : 'Back to login'}
                                 </button>
                             </div>
                         </div>

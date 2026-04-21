@@ -49,6 +49,23 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        // Check user approval status
+        $user = Auth::user();
+        if ($user && $user->role !== 'admin') {
+            if ($user->approval_status === 'pending') {
+                Auth::logout();
+                throw ValidationException::withMessages([
+                    'email' => 'Your account is pending approval by the administrator. Please wait for approval.',
+                ]);
+            } elseif ($user->approval_status === 'declined') {
+                Auth::logout();
+                $reason = $user->decline_reason ? ' Reason: ' . $user->decline_reason : '';
+                throw ValidationException::withMessages([
+                    'email' => 'Your account has been declined.' . $reason,
+                ]);
+            }
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

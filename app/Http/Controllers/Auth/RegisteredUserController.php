@@ -44,7 +44,12 @@ class RegisteredUserController extends Controller
                 'lowercase',
                 'email:rfc,dns',
                 'max:255',
-                'unique:'.User::class,
+                function ($attribute, $value, $fail) {
+                    $existingUser = User::where('email', $value)->first();
+                    if ($existingUser && $existingUser->approval_status !== 'declined') {
+                        $fail('The email has already been taken.');
+                    }
+                },
             ],
             'password' => [
                 'required',
@@ -57,15 +62,33 @@ class RegisteredUserController extends Controller
             'email.dns' => 'Email domain does not exist or is not reachable.',
                     ]);
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
+        // Check if user exists with declined status
+        $existingUser = User::where('email', $request->email)->first();
+        
+        if ($existingUser && $existingUser->approval_status === 'declined') {
+            // Update the declined user's information
+            $existingUser->update([
+                'name' => $request->name,
+                'password' => Hash::make($request->password),
+                'approval_status' => 'pending', // Reset to pending for new approval
+                'decline_reason' => null, // Clear previous decline reason
+                'email_verified_at' => null, // Require email verification again
+            ]);
+            $user = $existingUser;
+        } else {
+            // Create new user
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+                'approval_status' => 'pending', // Explicitly set to pending
+            ]);
+        }
 
         event(new Registered($user));
 
-        Auth::login($user);
+        // Don't auto-login user - they need to verify email first and wait for admin approval
+        // Auth::login($user); // REMOVED - users should not be auto-logged in
 
         return redirect(route('verification.notice'));
     }

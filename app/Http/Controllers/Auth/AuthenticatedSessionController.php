@@ -16,12 +16,10 @@ class AuthenticatedSessionController extends Controller
     /**
      * Display the login view.
      */
-    public function create(): Response
+    public function create(): RedirectResponse
     {
-        return Inertia::render('Auth/Login', [
-            'canResetPassword' => Route::has('password.request'),
-            'status' => session('status'),
-        ]);
+        // Redirect to FrontPage with login modal open since Auth/Login is commented out
+        return redirect()->route('front', ['login' => 'true']);
     }
 
     /**

@@ -125,7 +125,268 @@ export default function SavedStatements({ auth }) {
         // Get selected batch data
         const selectedBatches = groupedStatements.filter(batch => selectedStatements.has(batch.batch_id));
         
-        // Generate HTML for printing (exact match to original format)
+        // Function to calculate optimal font size based on row count with continuous scaling
+        const calculateOptimalFontSize = (rowCount) => {
+            if (rowCount <= 8) return '10px';  // Normal size
+            
+            // Multi-stage continuous scaling for maximum flexibility
+            // Stage 1: 8-20 rows: 10px -> 7px
+            // Stage 2: 20-40 rows: 7px -> 5px  
+            // Stage 3: 40-80 rows: 5px -> 3px
+            // Stage 4: 80+ rows: 3px (absolute minimum)
+            
+            if (rowCount <= 20) {
+                // Stage 1: Gradual reduction from 10px to 7px
+                const rowsBeyondBase = rowCount - 8;
+                const totalRowsToScale = 12; // 20 - 8
+                const fontSizeReduction = (rowsBeyondBase / totalRowsToScale) * 3; // 10px -> 7px
+                const calculatedFontSize = 10 - fontSizeReduction;
+                return `${Math.max(Math.round(calculatedFontSize), 7)}px`;
+            }
+            else if (rowCount <= 40) {
+                // Stage 2: Gradual reduction from 7px to 5px
+                const rowsBeyondBase = rowCount - 20;
+                const totalRowsToScale = 20; // 40 - 20
+                const fontSizeReduction = (rowsBeyondBase / totalRowsToScale) * 2; // 7px -> 5px
+                const calculatedFontSize = 7 - fontSizeReduction;
+                return `${Math.max(Math.round(calculatedFontSize), 5)}px`;
+            }
+            else if (rowCount <= 80) {
+                // Stage 3: Gradual reduction from 5px to 3px
+                const rowsBeyondBase = rowCount - 40;
+                const totalRowsToScale = 40; // 80 - 40
+                const fontSizeReduction = (rowsBeyondBase / totalRowsToScale) * 2; // 5px -> 3px
+                const calculatedFontSize = 5 - fontSizeReduction;
+                return `${Math.max(Math.round(calculatedFontSize), 3)}px`;
+            }
+            else {
+                // Stage 4: Absolute minimum for very large datasets
+                return '3px';
+            }
+        };
+
+        // Function to calculate optimal padding based on row count with continuous scaling
+        const calculateOptimalPadding = (rowCount) => {
+            if (rowCount <= 8) return '2px 4px';  // Normal padding
+            
+            // Multi-stage padding scaling to match font size scaling
+            // Stage 1: 8-20 rows: 2px 4px -> 1px 3px
+            // Stage 2: 20-40 rows: 1px 3px -> 1px 2px  
+            // Stage 3: 40-80 rows: 1px 2px -> 0px 1px
+            // Stage 4: 80+ rows: 0px 1px (absolute minimum)
+            
+            if (rowCount <= 20) {
+                // Stage 1: Gradual reduction from 2px 4px to 1px 3px
+                const rowsBeyondBase = rowCount - 8;
+                const totalRowsToScale = 12; // 20 - 8
+                const paddingReduction = Math.round((rowsBeyondBase / totalRowsToScale) * 1); // 2px -> 1px
+                const verticalPadding = Math.max(2 - paddingReduction, 1);
+                const horizontalPadding = Math.max(4 - paddingReduction, 3);
+                return `${verticalPadding}px ${horizontalPadding}px`;
+            }
+            else if (rowCount <= 40) {
+                // Stage 2: Gradual reduction from 1px 3px to 1px 2px
+                const rowsBeyondBase = rowCount - 20;
+                const totalRowsToScale = 20; // 40 - 20
+                const paddingReduction = Math.round((rowsBeyondBase / totalRowsToScale) * 1); // 3px -> 2px
+                const verticalPadding = 1;
+                const horizontalPadding = Math.max(3 - paddingReduction, 2);
+                return `${verticalPadding}px ${horizontalPadding}px`;
+            }
+            else if (rowCount <= 80) {
+                // Stage 3: Gradual reduction from 1px 2px to 0px 1px
+                const rowsBeyondBase = rowCount - 40;
+                const totalRowsToScale = 40; // 80 - 40
+                const paddingReduction = Math.round((rowsBeyondBase / totalRowsToScale) * 1); // 1px -> 0px
+                const verticalPadding = Math.max(1 - paddingReduction, 0);
+                const horizontalPadding = Math.max(2 - paddingReduction, 1);
+                return `${verticalPadding}px ${horizontalPadding}px`;
+            }
+            else {
+                // Stage 4: Absolute minimum for very large datasets
+                return '0px 1px';
+            }
+        };
+
+        // Function to generate statement HTML with dynamic sizing
+        const generateStatementHTML = (batch, batchIndex) => {
+            const statements = batch.statements;
+            const rowCount = statements.length;
+            const fontSize = calculateOptimalFontSize(rowCount);
+            const padding = calculateOptimalPadding(rowCount);
+            
+            return `
+                <div class="statement-container" style="--dynamic-font-size: ${fontSize}; --dynamic-padding: ${padding};">
+                    <div class="header-section">
+                        <div class="top-header">
+                            <!-- Logo -->
+                            <img src="/images/Untitled.png" alt="Logo" class="logo" />
+                            <!-- Centered Text -->
+                            <div class="header-text">
+                                <p class="province">Province of Misamis Oriental</p>
+                                <h1 class="municipality">MUNICIPALITY OF OPOL</h1>
+                                <h1 class="office">Municipal Treasurer's Office</h1>
+                            </div>
+                        </div>
+                        
+                        <div class="statement-banner">
+                            <h2 class="statement-title">STATEMENT OF ACCOUNT</h2>
+                            ${batch.created_at ? `
+                                <div class="date-stamp">
+                                    <span>${formatDate(batch.created_at)}</span>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <div class="table-container">
+                            <!-- Watermark Overlay -->
+                            <div class="watermark-container">
+                                <img src="/images/Opol-logoss.png" class="watermark-logo">
+                                <span class="watermark-text">Municipal Treasurer's Office</span>
+                            </div>
+                            <table class="w-full border-collapse border-2 border-gray-800 bg-white" style="table-layout: fixed; position: relative; z-index: 1;">
+                                <thead>
+                                    <tr class="bg-gray-100">
+                                        <th class="border border-gray-800 px-3 py-2 font-bold text-left" style="width: 150px; word-wrap: break-word;">Declared Owner</th>
+                                        <th class="border border-gray-800 px-3 py-2 font-bold text-left" style="width: 100px; word-wrap: break-word;">Location</th>
+                                        <th class="border border-gray-800 px-3 py-2 font-bold text-left whitespace-nowrap" style="width: 110px;">Block & Lot No.</th>
+                                        <th class="border border-gray-800 px-3 py-2 font-bold text-left" style="width: 100px; word-wrap: break-word;">Tax Dec. No.</th>
+                                        <th class="border border-gray-800 px-3 py-2 font-bold text-left whitespace-nowrap">KIND</th>
+                                        <th class="border border-gray-800 px-3 py-2 font-bold text-right whitespace-nowrap">ASSESSED VALUE</th>
+                                        <th class="border border-gray-800 px-3 py-2 font-bold text-center whitespace-nowrap">PAYMENT YEAR</th>
+                                        <th class="border border-gray-800 px-3 py-2 font-bold text-right whitespace-nowrap">BASIC/SEF</th>
+                                        <th class="border border-gray-800 px-3 py-2 font-bold text-right whitespace-nowrap">PEN/DISC</th>
+                                        <th class="border border-gray-800 px-3 py-2 font-bold text-right whitespace-nowrap">TOTAL</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${statements.map(statement => {
+                                        // Use saved values instead of recalculating
+                                        const assessedValue = parseFloat(statement.assessed_value) || 0;
+                                        const fullPayment = parseFloat(statement.full_payment) || 0;
+                                        const penaltyAmount = parseFloat(statement.penalty_discount) || 0;
+                                        const total = parseFloat(statement.total) || 0;
+
+                                        return `
+                                        <tr>
+                                            <td class="border border-gray-800 px-3 py-2" style="width: 150px; word-wrap: break-word; vertical-align: top;">${statement.declared_owner || '-'}</td>
+                                            <td class="border border-gray-800 px-3 py-2" style="width: 100px; word-wrap: break-word; vertical-align: top;">${statement.location || '-'}</td>
+                                            <td class="border border-gray-800 px-3 py-2" style="width: 110px;">${statement.block_lot_no || '-'}</td>
+                                            <td class="border border-gray-800 px-3 py-2" style="width: 100px; word-wrap: break-word;">${statement.tax_dec_no || '-'}</td>
+                                            <td class="border border-gray-800 px-3 py-2">${statement.kind || '-'}</td>
+                                            <td class="border border-gray-800 px-3 py-2 text-right bg-gray-100">
+                                            <div style="position: relative;">
+                                                ${assessedValue > 0 ? formatAssessedValue(assessedValue) : ''}
+                                                ${statement.isUnderlined ? '<div style="border-bottom: 1px solid #1f2937; margin-top: 1px;"></div>' : ''}
+                                            </div>
+                                        </td>
+                                            <td class="border border-gray-800 px-3 py-2 text-center">${statement.payment_year || '-'}</td>
+                                            <td class="border border-gray-800 px-3 py-2 text-right bg-gray-100">${fullPayment > 0 ? formatCurrency(fullPayment) : ''}</td>
+                                            <td class="border border-gray-800 px-3 py-2 text-right bg-gray-100">
+                                                ${statement.penaltyDiscountType === 'tax_diff' 
+                                                    ? '<span class="text-green-700 font-medium">Tax Amnesty</span>' 
+                                                    : (penaltyAmount > 0 && !isNaN(penaltyAmount) && isFinite(penaltyAmount) ? formatCurrency(penaltyAmount) : '')
+                                                }
+                                            </td>
+                                            <td class="border border-gray-800 px-3 py-2 text-right bg-blue-100 ${statement.penaltyDiscountType === 'tax_diff' ? 'text-green-700 font-bold' : 'font-bold'}">${total > 0 ? formatCurrency(roundToEven(total)) : ''}</td>
+                                        </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colSpan="9" class="border border-gray-800 px-3 py-2 font-bold text-right bg-yellow-50">RPT TOTAL</td>
+                                        <td class="border border-gray-800 px-3 py-2 text-right font-bold bg-yellow-50">
+                                            ${(() => {
+                                                const rptTotal = batch.statements.reduce((sum, statement) => sum + (parseFloat(statement.total) || 0), 0);
+                                                return rptTotal > 0 ? formatCurrency(roundToEven(rptTotal)) : '';
+                                            })()}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td colSpan="9" class="border border-gray-800 px-3 py-2 font-bold text-right bg-gray-50">ENVIRONMENTAL PROTECTION FEE</td>
+                                        <td class="border border-gray-800 px-3 py-2 text-right bg-gray-50">
+                                            ${batch.envi_fee > 0 ? formatCurrency(parseFloat(batch.envi_fee)) : ''}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td colSpan="9" class="border border-gray-800 px-3 py-2 font-bold text-right bg-blue-50">GRAND TOTAL</td>
+                                        <td class="border border-gray-800 px-3 py-2 text-right font-bold bg-blue-50">
+                                            ${(() => {
+                                                // Use saved grand total from batch instead of recalculating
+                                                const savedGrandTotal = parseFloat(batch.grand_total) || 0;
+                                                return formatCurrency(roundToEven(savedGrandTotal));
+                                            })()}
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                        
+                        <!-- Notice Section -->
+                        <div class="notice-section">
+                            <div class="notice-banner">
+                                <p class="notice-text">"Please disregard this notice if payment has been made."</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Signature Section -->
+                        <div class="signature-section" style="margin-top: 24px; padding: 0 24px;">
+                            <div class="signature-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px;">
+                                <!-- Prepared By -->
+                                <div>
+                                    <p class="text-sm font-medium text-gray-700 mb-6" style="margin-left: 48px;">Prepared by:</p>
+                                    <div class="text-center" style="margin-bottom: 4px;">
+                                        <div style="width: 256px; font-size: 16px; font-weight: 600; color: rgb(17 24 39); border: none; border-bottom: 2px solid rgb(156 163 175); text-align: center; padding-bottom: 4px; margin: 0 auto;">
+                                            ${(batch.prepared_by || (batch.user_id ? `User ${batch.user_id}` : 'System Generated')).toUpperCase()}
+                                        </div>
+                                        <p class="text-sm text-gray-600" style="margin-top: 8px;">MTO STAFF</p>
+                                    </div>
+                                </div>
+
+                                <!-- Certified Correct By -->
+                                <div>
+                                    <p class="text-sm font-medium text-gray-700 mb-6">Certified Correct By:</p>
+                                    <div class="text-center" style="margin-bottom: 4px;">
+                                        <div style="width: 256px; font-size: 16px; font-weight: 600; color: rgb(17 24 39); border: none; border-bottom: 2px solid rgb(156 163 175); text-align: center; padding-bottom: 4px; margin: 0 auto;">
+                                            ${(batch.certified_by || 'Lalaine M. Cariliman').toUpperCase()}
+                                        </div>
+                                        <p class="text-sm text-gray-600" style="margin-top: 8px;">ACTING MUNICIPAL TREASURER</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Contact Us Section -->
+                        <div class="contact-section" style="margin-top: 16px;">
+                            <div class="contact-info">
+                                <div class="contact-item">
+                                    <span class="contact-title">Contact Us :</span>
+                                </div>
+                                <div class="contact-item">
+                                    <svg class="contact-icon" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                                    </svg>
+                                    <span class="contact-text">Opol Treasury</span>
+                                </div>
+                                <div class="contact-item">
+                                    <span class="contact-icon">✉️</span>
+                                    <span class="contact-text">opolmuntreasureroffice@gmail.com</span>
+                                </div>
+                                <div class="contact-item">
+                                    <span class="contact-icon">📞</span>
+                                    <span class="contact-text">09754073090</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                                            </div>
+                </div>
+            `;
+        };
+        
+        // Generate HTML for printing with dynamic sizing
         const printHTML = `
             <!DOCTYPE html>
             <html>
@@ -134,8 +395,28 @@ export default function SavedStatements({ auth }) {
                 <style>
                     @media print {
                         body { margin: 0; padding: 10px; }
-                        .page-break { page-break-before: always; }
                         .no-print { display: none; }
+                        
+                        /* Dynamic font sizing for print */
+                        .statement-container { font-size: var(--dynamic-font-size, 10px); }
+                        .statement-container th { 
+                            font-size: var(--dynamic-font-size, 10px) !important; 
+                            padding: var(--dynamic-padding, 2px 4px) !important;
+                        }
+                        .statement-container td { 
+                            font-size: var(--dynamic-font-size, 10px) !important; 
+                            padding: var(--dynamic-padding, 2px 4px) !important;
+                        }
+                        .statement-container .notice-text { 
+                            font-size: var(--dynamic-font-size, 10px) !important; 
+                        }
+                        .statement-container .signature-line p { 
+                            font-size: var(--dynamic-font-size, 10px) !important; 
+                        }
+                        .statement-container .contact-title,
+                        .statement-container .contact-text { 
+                            font-size: var(--dynamic-font-size, 10px) !important; 
+                        }
                     }
                     body { 
                         font-family: Arial, sans-serif;                         
@@ -156,38 +437,36 @@ export default function SavedStatements({ auth }) {
     overflow: hidden;
 }
 
-/* Bottom-left watermark container */
-.watermark-container{
-    position:absolute;
-    bottom:20px;
-    left:20px;
-    display:flex;
-    align-items:center;
-    gap:10px;
-    opacity:0.15;
-    z-index:0;
-}
-
-/* Watermark logo */
-.watermark-logo{
-    width:70px;
-    height:70px;
-    object-fit:contain;
-}
-
-/* Watermark text */
-.watermark-text{
-    font-size:16px;
-    font-weight:bold;
-    color:#000;
-}
-
-
-/* Keep content above watermark */
-.header-section * {
+/* Watermark for table */
+.table-container {
     position: relative;
-    z-index: 1;
 }
+
+.watermark-container {
+    position: absolute;
+    top: 90%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0.15;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.watermark-logo {
+    width: 50px;
+    height: 50px;
+    object-fit: contain;
+}
+
+.watermark-text {
+    font-size: 12px;
+    font-weight: bold;
+    color: #000;
+}
+
 .top-header {
     position: relative;
     display: flex;
@@ -428,184 +707,11 @@ export default function SavedStatements({ auth }) {
                         .signature-line {
                             border-top: 1px solid rgb(31 41 55) !important;
                         }
-                        
-                        .page-break {
-                            page-break-before: always;
-                        }
                     }
                 </style>
             </head>
             <body>
-                ${selectedBatches.map((batch, index) => `
-                    ${index > 0 ? '<div class="page-break"></div>' : ''}
-                    <div class="statement-container">
-<div class="header-section">
-
-    <div class="top-header">
-            <!-- Logo -->
-            <img src="/images/Untitled.png" alt="Logo" class="logo" />
-
-            <!-- Centered Text -->
-            <div class="header-text">
-                <p class="province">Province of Misamis Oriental</p>
-                <h1 class="municipality">MUNICIPALITY OF OPOL</h1>
-                <h1 class="office">Municipal Treasurer's Office</h1>
-            </div>
-        </div>
-                            
-                            <div class="statement-banner">
-                                <h2 class="statement-title">STATEMENT OF ACCOUNT</h2>
-                                ${batch.created_at ? `
-                                    <div class="date-stamp">
-                
-                                        <span>${formatDate(batch.created_at)}</span>
-                                    </div>
-                                ` : ''}
-                            </div>
-
-                            <div class="table-container">
-                                <table class="w-full border-collapse border-2 border-gray-800 bg-white" style="table-layout: fixed;">
-                                    <thead>
-                                        <tr class="bg-gray-100">
-                                            <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-left" style="width: 150px; word-wrap: break-word;">Declared Owner</th>
-                                            <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-left" style="width: 100px; word-wrap: break-word;">Location</th>
-                                            <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-left whitespace-nowrap" style="width: 110px;">Block & Lot No.</th>
-                                            <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-left" style="width: 100px; word-wrap: break-word;">Tax Dec. No.</th>
-                                            <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-left whitespace-nowrap">KIND</th>
-                                            <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-right whitespace-nowrap">ASSESSED VALUE</th>
-                                            <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-center whitespace-nowrap">PAYMENT YEAR</th>
-                                            <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-right whitespace-nowrap">BASIC/SEF</th>
-                                            <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-right whitespace-nowrap">PEN/DISC</th>
-                                            <th class="border border-gray-800 px-3 py-2 text-xs font-bold text-right whitespace-nowrap">TOTAL</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${(() => {
-                                            // Calculate RPT total (sum of all statement totals, excluding environmental fee)
-                                            const rptTotal = batch.statements.reduce((sum, statement) => sum + (parseFloat(statement.total) || 0), 0);
-                                            return '';
-                                        })()}
-                                        ${batch.statements.map(statement => {
-                                            // Use saved values instead of recalculating
-                                            const assessedValue = parseFloat(statement.assessed_value) || 0;
-                                            const fullPayment = parseFloat(statement.full_payment) || 0;
-                                            const penaltyAmount = parseFloat(statement.penalty_discount) || 0;
-                                            const total = parseFloat(statement.total) || 0;
-
-                                            return `
-                                            <tr>
-                                                <td class="border border-gray-800 px-3 py-2 text-xs" style="width: 150px; word-wrap: break-word; vertical-align: top;">${statement.declared_owner || '-'}</td>
-                                                <td class="border border-gray-800 px-3 py-2 text-xs" style="width: 100px; word-wrap: break-word; vertical-align: top;">${statement.location || '-'}</td>
-                                                <td class="border border-gray-800 px-3 py-2 text-xs" style="width: 110px;">${statement.block_lot_no || '-'}</td>
-                                                <td class="border border-gray-800 px-3 py-2 text-xs" style="width: 100px; word-wrap: break-word;">${statement.tax_dec_no || '-'}</td>
-                                                <td class="border border-gray-800 px-3 py-2 text-xs">${statement.kind || '-'}</td>
-                                                <td class="border border-gray-800 px-3 py-2 text-xs text-right bg-gray-100">
-                                                <div style="position: relative;">
-                                                    ${assessedValue > 0 ? formatAssessedValue(assessedValue) : ''}
-                                                    ${statement.isUnderlined ? '<div style="border-bottom: 2px solid #1f2937; margin-top: 2px;"></div>' : ''}
-                                                </div>
-                                            </td>
-                                                <td class="border border-gray-800 px-3 py-2 text-xs text-center">${statement.payment_year || '-'}</td>
-                                                <td class="border border-gray-800 px-3 py-2 text-xs text-right bg-gray-100">${fullPayment > 0 ? formatCurrency(fullPayment) : ''}</td>
-                                                <td class="border border-gray-800 px-3 py-2 text-xs text-right bg-gray-100">
-                                                    ${statement.penaltyDiscountType === 'tax_diff' 
-                                                        ? '<span class="text-green-700 font-medium">Tax Amnesty</span>' 
-                                                        : (penaltyAmount !== 0 ? formatCurrency(penaltyAmount) : '')
-                                                    }
-                                                </td>
-                                                <td class="border border-gray-800 px-3 py-2 text-xs text-right bg-blue-100 ${statement.penaltyDiscountType === 'tax_diff' ? 'text-green-700 font-bold' : 'font-bold'}">${total > 0 ? formatCurrency(roundToEven(total)) : ''}</td>
-                                            </tr>
-                                            `;
-                                        }).join('')}
-                                    </tbody>
-                                    <tfoot>
-                                        <tr>
-                                            <td colSpan="9" class="border border-gray-800 px-3 py-2 text-xs font-bold text-right bg-yellow-50">RPT TOTAL</td>
-                                            <td class="border border-gray-800 px-3 py-2 text-xs text-right font-bold bg-yellow-50">
-                                                ${(() => {
-                                                    const rptTotal = batch.statements.reduce((sum, statement) => sum + (parseFloat(statement.total) || 0), 0);
-                                                    return rptTotal > 0 ? formatCurrency(roundToEven(rptTotal)) : '';
-                                                })()}
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td colSpan="9" class="border border-gray-800 px-3 py-2 text-xs font-bold text-right bg-gray-50">ENVIRONMENTAL PROTECTION FEE</td>
-                                            <td class="border border-gray-800 px-3 py-2 text-xs text-right bg-gray-50">
-                                                ${batch.envi_fee > 0 ? formatCurrency(parseFloat(batch.envi_fee)) : ''}
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td colSpan="9" class="border border-gray-800 px-3 py-2 text-xs font-bold text-right bg-blue-50">GRAND TOTAL</td>
-                                            <td class="border border-gray-800 px-3 py-2 text-xs text-right font-bold bg-blue-50">
-                                                ${(() => {
-                                                    // Use saved grand total from batch instead of recalculating
-                                                    const savedGrandTotal = parseFloat(batch.grand_total) || 0;
-                                                    return formatCurrency(roundToEven(savedGrandTotal));
-                                                })()}
-                                            </td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
-                            
-                            <!-- Notice Section -->
-                            <div class="notice-section">
-                                <div class="notice-banner">
-                                    <p class="notice-text">"Please disregard this notice if payment has been made."</p>
-                                </div>
-                            </div>
-                            
-                            <!-- Signature Section -->
-                            <div class="signature-section">
-                                <div class="signature-row">
-                                    <div class="signature-block">
-                                        <p class="text-xs font-medium text-gray-900 mb-6">Prepared by:</p>
-                                        <div class="signature-line">
-                                            <p class="text-sm font-bold text-gray-900 text-center">${(batch.prepared_by || (batch.user_id ? `User ${batch.user_id}` : 'System Generated')).toUpperCase()}</p>
-                                            <p class="text-xs text-gray-700">MTO STAFF</p>
-                                        </div>
-                                    </div>
-                                    <div class="signature-block">
-                                        <p class="text-xs font-medium text-gray-900 mb-6">Certified Correct By:</p>
-                                        <div class="signature-line">
-                                            <p class="text-sm font-bold text-gray-900 text-center">${(batch.certified_by || 'Lalaine M. Cariliman').toUpperCase()}</p>
-                                            <p class="text-xs text-gray-700">ACTING MUNICIPAL TREASURER</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Contact Us Section -->
-                            <div class="contact-section">
-                                <div class="contact-info">
-                                    <div class="contact-item">
-                                        <span class="contact-title">Contact Us :</span>
-                                    </div>
-                                    <div class="contact-item">
-                                        <svg class="contact-icon" fill="currentColor" viewBox="0 0 24 24">
-                                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                                        </svg>
-                                        <span class="contact-text">Opol Treasury</span>
-                                    </div>
-                                    <div class="contact-item">
-                                        <span class="contact-icon">✉️</span>
-                                        <span class="contact-text">opolmuntreasureroffice@gmail.com</span>
-                                    </div>
-                                    <div class="contact-item">
-                                        <span class="contact-icon">📞</span>
-                                        <span class="contact-text">09754073090</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Bottom-left watermark -->
-                            <div class="watermark-container">
-                                <img src="/images/Opol-logoss.png" class="watermark-logo">
-                                <span class="watermark-text">Municipal Treasurer's Office</span>
-                            </div>
-                        </div>
-                    </div>
-                `).join('')}
+                ${selectedBatches.map((batch, index) => generateStatementHTML(batch, index)).join('')}
             </body>
             </html>
         `;
@@ -730,12 +836,7 @@ export default function SavedStatements({ auth }) {
                 const assessedValue = parseFloat(updatedForm.assessed_value) || 0;
                 const paymentYear = updatedForm.payment_year;
                 
-                // Skip recalculation for Tax Diff rows - preserve existing values
-                if (updatedForm.penaltyDiscountType === 'tax_diff') {
-                    // For Tax Diff rows, don't recalculate fullPayment when payment_year or assessed_value changes
-                    // Keep the existing fullPayment, penalty_discount (0), and total values
-                    return newForms;
-                }
+                // For Tax Diff rows, recalculate Basic/SEF but keep Tax Diff logic
                 
                 if (assessedValue > 0 && paymentYear) {
                     // Calculate years and penalty (use tax amnesty if enabled)
@@ -973,26 +1074,37 @@ export default function SavedStatements({ auth }) {
 
         // Set up for editing multiple statements
         setEditingId(statementsToEdit[0].id);
-        setEditForms(statementsToEdit.map(statement => ({
-            id: statement.id,
-            batch_id: statement.batch_id,
-            declared_owner: statement.declared_owner,
-            location: statement.location,
-            block_lot_no: statement.block_lot_no,
-            tax_dec_no: statement.tax_dec_no,
-            kind: statement.kind,
-            assessed_value: statement.assessed_value,
-            payment_year: statement.payment_year,
-            full_payment: statement.full_payment,
-            penalty_discount: statement.penalty_discount,
-            total: roundToEven(parseFloat(statement.total) || 0),
-            envi_fee: statement.envi_fee,
-            grand_total: roundToEven(parseFloat(statement.grand_total) || 0),
-            prepared_by: statement.prepared_by,
-            certified_by: statement.certified_by,
-            penaltyDiscountType: statement.penaltyDiscountType || '',
-            isUnderlined: statement.isUnderlined === true || statement.isUnderlined === 1 ? true : false
-        })));
+        setEditForms(statementsToEdit.map(statement => {
+            // Validate and clean penalty_discount value
+            let penaltyDiscount = 0;
+            if (statement.penaltyDiscountType === 'tax_diff') {
+                penaltyDiscount = 0; // Always 0 for tax amnesty
+            } else {
+                const pdValue = parseFloat(statement.penalty_discount);
+                penaltyDiscount = (!isNaN(pdValue) && isFinite(pdValue)) ? pdValue : 0;
+            }
+            
+            return {
+                id: statement.id,
+                batch_id: statement.batch_id,
+                declared_owner: statement.declared_owner,
+                location: statement.location,
+                block_lot_no: statement.block_lot_no,
+                tax_dec_no: statement.tax_dec_no,
+                kind: statement.kind,
+                assessed_value: statement.assessed_value,
+                payment_year: statement.payment_year,
+                full_payment: statement.full_payment,
+                penalty_discount: penaltyDiscount,
+                total: roundToEven(parseFloat(statement.total) || 0),
+                envi_fee: statement.envi_fee,
+                grand_total: roundToEven(parseFloat(statement.grand_total) || 0),
+                prepared_by: statement.prepared_by,
+                certified_by: statement.certified_by,
+                penaltyDiscountType: statement.penaltyDiscountType || '',
+                isUnderlined: statement.isUnderlined === true || statement.isUnderlined === 1 ? true : false
+            };
+        }));
 
         // Set the prepared_by and certified_by state from the database
         setPreparedBy((statementsToEdit[0].prepared_by || auth?.user?.name || '').toUpperCase());
@@ -1395,7 +1507,7 @@ export default function SavedStatements({ auth }) {
             const total = roundToEven(fullPayment);
             
             updatedForm.full_payment = fullPayment;
-            updatedForm.penalty_discount = 0;
+            updatedForm.penalty_discount = 0; // Explicitly set to 0 for tax amnesty
             updatedForm.total = total;
             
             newForms[index] = updatedForm;
@@ -1508,75 +1620,78 @@ export default function SavedStatements({ auth }) {
 
     // Calculate penalty rates for tax amnesty (April-July 2026)
     const calculateTaxAmnestyPenalty = (paymentYear) => {
-        if (!paymentYear) return { years: 0, penaltyRate: 0 };
+        if (!paymentYear) return { years: 1, penaltyRate: 0 };
         
         const currentDate = new Date();
         const currentYear = currentDate.getFullYear();
         const currentMonth = currentDate.getMonth() + 1; // 1-12
         
-        // Only apply tax amnesty for April-July 2026
-        if (currentYear === 2026 && currentMonth >= 4 && currentMonth <= 7) {
-            // Handle year range (e.g., "2021-2023")
-            if (paymentYear.includes('-')) {
-                const [startYear, endYear] = paymentYear.split('-').map(y => parseInt(y.trim()));
-                if (!isNaN(startYear) && !isNaN(endYear)) {
-                    const years = endYear - startYear + 1;
-                    // Calculate tax amnesty penalty rates based on the most recent year in range
-                    const mostRecentYear = endYear;
-                    let penaltyRate = 0;
+        // Handle year range (e.g., "2020-2022")
+        if (paymentYear.includes('-')) {
+            const [startYear, endYear] = paymentYear.split('-').map(y => parseInt(y.trim()));
+            if (!isNaN(startYear) && !isNaN(endYear)) {
+                const years = endYear - startYear + 1;
+                
+                // Only apply tax amnesty for April-July 2026
+                if (currentYear === 2026 && currentMonth >= 4 && currentMonth <= 7) {
+                    // For tax amnesty, we need to calculate the average penalty rate for the range
+                    let totalPenaltyRate = 0;
                     
-                    if (mostRecentYear === 2026) {
-                        // 2026: Different penalty rates per month
-                        if (currentMonth === 4) penaltyRate = 0.08;      // April: 8%
-                        else if (currentMonth === 5) penaltyRate = 0.10;  // May: 10%
-                        else if (currentMonth === 6) penaltyRate = 0.12;  // June: 12%
-                        else if (currentMonth === 7) penaltyRate = 0.14;  // July: 14%
-                    } else if (mostRecentYear === 2025) {
-                        // 2025: Different penalty rates per month
-                        if (currentMonth === 4) penaltyRate = 0.32;      // April: 32%
-                        else if (currentMonth === 5) penaltyRate = 0.34;  // May: 34%
-                        else if (currentMonth === 6) penaltyRate = 0.36;  // June: 36%
-                        else if (currentMonth === 7) penaltyRate = 0.36;  // July: 36%
-                    } else if (mostRecentYear === 2024) {
-                        // 2024: Different penalty rates per month
-                        if (currentMonth === 4) penaltyRate = 0.44;      // April: 44%
-                        else if (currentMonth === 5) penaltyRate = 0.46;  // May: 46%
-                        else if (currentMonth === 6) penaltyRate = 0.48;  // June: 48%
-                        else if (currentMonth === 7) penaltyRate = 0.48;  // July: 48%
-                    } else if (mostRecentYear <= 2023) {
-                        // 2023 and below: No penalty
-                        penaltyRate = 0;
+                    for (let year = startYear; year <= endYear; year++) {
+                        if (year === 2026) {
+                            // 2026: Different penalty rates per month
+                            if (currentMonth === 4) totalPenaltyRate += 0.08;      // April: 8%
+                            else if (currentMonth === 5) totalPenaltyRate += 0.10;  // May: 10%
+                            else if (currentMonth === 6) totalPenaltyRate += 0.12;  // June: 12%
+                            else if (currentMonth === 7) totalPenaltyRate += 0.14;  // July: 14%
+                        } else if (year === 2025) {
+                            // 2025: Different penalty rates per month
+                            if (currentMonth === 4) totalPenaltyRate += 0.32;      // April: 32%
+                            else if (currentMonth === 5) totalPenaltyRate += 0.34;  // May: 34%
+                            else if (currentMonth === 6) totalPenaltyRate += 0.36;  // June: 36%
+                            else if (currentMonth === 7) totalPenaltyRate += 0.36;  // July: 36%
+                        } else if (year === 2024) {
+                            // 2024: Different penalty rates per month
+                            if (currentMonth === 4) totalPenaltyRate += 0.44;      // April: 44%
+                            else if (currentMonth === 5) totalPenaltyRate += 0.46;  // May: 46%
+                            else if (currentMonth === 6) totalPenaltyRate += 0.48;  // June: 48%
+                            else if (currentMonth === 7) totalPenaltyRate += 0.48;  // July: 48%
+                        } else if (year <= 2023) {
+                            // 2023 and below: No penalty
+                            totalPenaltyRate += 0;
+                        }
                     }
                     
-                    return { years, penaltyRate };
+                    // Return average penalty rate for the range
+                    return { years, penaltyRate: totalPenaltyRate / years };
                 }
             }
-            
-            // Handle single year
-            const year = parseInt(paymentYear);
-            if (!isNaN(year)) {
-                if (year === 2026) {
-                    // 2026: Different penalty rates per month
-                    if (currentMonth === 4) return { years: 1, penaltyRate: 0.08 };      // April: 8%
-                    if (currentMonth === 5) return { years: 1, penaltyRate: 0.10 };      // May: 10%
-                    if (currentMonth === 6) return { years: 1, penaltyRate: 0.12 };      // June: 12%
-                    if (currentMonth === 7) return { years: 1, penaltyRate: 0.14 };      // July: 14%
-                } else if (year === 2025) {
-                    // 2025: Different penalty rates per month
-                    if (currentMonth === 4) return { years: 1, penaltyRate: 0.32 };      // April: 32%
-                    if (currentMonth === 5) return { years: 1, penaltyRate: 0.34 };      // May: 34%
-                    if (currentMonth === 6) return { years: 1, penaltyRate: 0.36 };      // June: 36%
-                    if (currentMonth === 7) return { years: 1, penaltyRate: 0.36 };      // July: 36%
-                } else if (year === 2024) {
-                    // 2024: Different penalty rates per month
-                    if (currentMonth === 4) return { years: 1, penaltyRate: 0.44 };      // April: 44%
-                    if (currentMonth === 5) return { years: 1, penaltyRate: 0.46 };      // May: 46%
-                    if (currentMonth === 6) return { years: 1, penaltyRate: 0.48 };      // June: 48%
-                    if (currentMonth === 7) return { years: 1, penaltyRate: 0.48 };      // July: 48%
-                } else if (year <= 2023) {
-                    // 2023 and below: No penalty
-                    return { years: 1, penaltyRate: 0 };
-                }
+        }
+        
+        // Handle single year
+        const year = parseInt(paymentYear);
+        if (!isNaN(year)) {
+            if (year === 2026) {
+                // 2026: Different penalty rates per month
+                if (currentMonth === 4) return { years: 1, penaltyRate: 0.08 };      // April: 8%
+                if (currentMonth === 5) return { years: 1, penaltyRate: 0.10 };      // May: 10%
+                if (currentMonth === 6) return { years: 1, penaltyRate: 0.12 };      // June: 12%
+                if (currentMonth === 7) return { years: 1, penaltyRate: 0.14 };      // July: 14%
+            } else if (year === 2025) {
+                // 2025: Different penalty rates per month
+                if (currentMonth === 4) return { years: 1, penaltyRate: 0.32 };      // April: 32%
+                if (currentMonth === 5) return { years: 1, penaltyRate: 0.34 };      // May: 34%
+                if (currentMonth === 6) return { years: 1, penaltyRate: 0.36 };      // June: 36%
+                if (currentMonth === 7) return { years: 1, penaltyRate: 0.36 };      // July: 36%
+            } else if (year === 2024) {
+                // 2024: Different penalty rates per month
+                if (currentMonth === 4) return { years: 1, penaltyRate: 0.44 };      // April: 44%
+                if (currentMonth === 5) return { years: 1, penaltyRate: 0.46 };      // May: 46%
+                if (currentMonth === 6) return { years: 1, penaltyRate: 0.48 };      // June: 48%
+                if (currentMonth === 7) return { years: 1, penaltyRate: 0.48 };      // July: 48%
+            } else if (year <= 2023) {
+                // 2023 and below: No penalty
+                return { years: 1, penaltyRate: 0 };
             }
         }
         
@@ -1605,15 +1720,29 @@ export default function SavedStatements({ auth }) {
             // Calculate full payment (basic/sef * number of years)
             const fullPayment = basicSef * years;
             
-            // Calculate penalty amount
-            const penaltyAmount = fullPayment * penaltyRate;
+            // Calculate penalty/discount amount based on type
+            let penaltyAmount = 0;
+            let total = 0;
             
-            // Calculate total
-            const total = roundToEven(fullPayment + penaltyAmount);
+            if (updatedForm.penaltyDiscountType === 'tax_diff') {
+                // Tax Diff: Total equals Basic/SEF only (no penalty/discount)
+                penaltyAmount = 0;
+                total = roundToEven(fullPayment);
+            } else {
+                // Regular penalty/discount calculation
+                penaltyAmount = fullPayment * penaltyRate;
+                total = roundToEven(fullPayment + penaltyAmount);
+            }
             
             updatedForm.full_payment = fullPayment;
             updatedForm.penalty_discount = penaltyAmount;
             updatedForm.total = total;
+        }
+
+        // Handle full_payment changes in Tax Diff mode
+        if (fieldName === 'full_payment' && updatedForm.penaltyDiscountType === 'tax_diff') {
+            // In Tax Diff mode, Total equals fullPayment
+            updatedForm.total = parseFloat(value) || 0;
         }
 
         // Calculate grand total
@@ -2169,7 +2298,7 @@ export default function SavedStatements({ auth }) {
                                                                         <td className="border border-gray-800 px-3 py-2 text-xs text-right bg-gray-100 font-medium">
                                                                             {statement.penaltyDiscountType === 'tax_diff' 
                                                                                 ? <span className="text-green-700 font-medium">Tax Amnesty</span> 
-                                                                                : (penaltyAmount !== 0 ? formatCurrency(penaltyAmount) : '')
+                                                                                : (penaltyAmount > 0 && !isNaN(penaltyAmount) && isFinite(penaltyAmount) ? formatCurrency(penaltyAmount) : '')
                                                                             }
                                                                         </td>
                                                                         <td className={`border border-gray-800 px-3 py-2 text-xs text-right bg-blue-50 font-bold ${statement.penaltyDiscountType === 'tax_diff' ? 'text-green-700' : ''}`}>
@@ -2210,23 +2339,42 @@ export default function SavedStatements({ auth }) {
                                                         <p className="text-xs font-medium text-gray-900 italic">"Please disregard this notice if payment has been made."</p>
                                                     </div>
 
-                                                    {/* Signature Section */}
-                                                    <div className="flex justify-between items-start mt-8">
-                                                        <div className="text-center w-5/12">
-                                                            <p className="text-xs font-medium text-gray-900 mb-6">Prepared by:</p>
-                                                            <div className="border-t border-gray-800 pt-2">
-                                                                <p className="text-sm font-bold text-gray-900">{(batch.statements[0]?.prepared_by || 'Unknown User').toUpperCase()}</p>
-                                                                <p className="text-xs text-gray-700">MTO STAFF</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="text-center w-5/12">
-                                                            <p className="text-xs font-medium text-gray-900 mb-6">Certified Correct By:</p>
-                                                            <div className="border-t border-gray-800 pt-2">
-                                                                <p className="text-sm font-bold text-gray-900">{(batch.statements[0]?.certified_by || 'Lalaine M. Cariliman').toUpperCase()}</p>
-                                                                <p className="text-xs text-gray-700">ACTING MUNICIPAL TREASURER</p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
+                            {/* Signature Section */}
+                            <div className="mt-12 px-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
+                                    
+                                    {/* Prepared By */}
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-700 mb-6 ml-12">Prepared by:</p>
+                                        <div className="text-center space-y-1">
+                                            <input
+                                                type="text"
+                                                value={preparedBy}
+                                                onChange={(e) => setPreparedBy(e.target.value.toUpperCase())}
+                                                className="w-64 text-base font-semibold text-gray-900 bg-transparent border-0 border-b-2 border-gray-400 focus:outline-none focus:border-blue-600 text-center pb-1 transition-colors"
+                                                
+                                            />
+                                            <p className="text-sm text-gray-600 mt-8">MTO STAFF</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Certified Correct By */}
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-700 mb-6">Certified Correct By:</p>
+                                        <div className="text-center space-y-1">
+                                            <input
+                                                type="text"
+                                                value={certifiedCorrectBy}
+                                                onChange={(e) => setCertifiedCorrectBy(e.target.value.toUpperCase())}
+                                                className="w-64 text-base font-semibold text-gray-900 bg-transparent border-0 border-b-2 border-gray-400 focus:outline-none focus:border-blue-600 text-center pb-1 transition-colors"
+                                                placeholder="LALAINE M. CARILIMAN"
+                                            />
+                                            <p className="text-sm text-gray-600 mt-8">ACTING MUNICIPAL TREASURER</p>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
                                                 </div>
 
                                                 {/* Actions */}
@@ -2500,7 +2648,6 @@ export default function SavedStatements({ auth }) {
                                                         <div className="relative flex-1">
                                                             <input
                                                                 type="text"
-                                                                step="0.01"
                                                                 value={form.assessed_value || ''}
                                                                 onChange={(e) => updateFormField(index, 'assessed_value', parseFloat(e.target.value.replace(/,/g, '')) || 0)}
                                                                 onContextMenu={(e) => handleContextMenu(e, index)}
@@ -2544,15 +2691,52 @@ export default function SavedStatements({ auth }) {
                                                 <td className="border border-gray-800 px-3 py-2 text-xs text-right bg-gray-100 font-medium">
                                                     {form.penaltyDiscountType === 'tax_diff' ? (
                                                         <input
-                                                            type="number"
-                                                            value={form.full_payment !== 0 ? parseFloat(form.full_payment).toFixed(2) : ''}
+                                                            type="text"
+                                                            value={form.full_payment_input || (form.full_payment === 0 ? '' : form.full_payment.toString())}
                                                             onChange={(e) => {
-                                                                const numValue = parseFloat(e.target.value) || 0;
-                                                                updateFormField(index, 'full_payment', numValue);
+                                                                const inputValue = e.target.value;
+                                                                setEditForms(prevForms => {
+                                                                    const newForms = [...prevForms];
+                                                                    const updatedForm = { ...newForms[index] };
+                                                                    updatedForm.full_payment_input = inputValue;
+                                                                    
+                                                                    // Parse the value for calculation
+                                                                    let cleanValue = inputValue.replace(/[^0-9.]/g, '');
+                                                                    const numValue = parseFloat(cleanValue) || 0;
+                                                                    updatedForm.full_payment = numValue;
+                                                                    
+                                                                    // Recalculate total for Tax Diff
+                                                                    if (updatedForm.penaltyDiscountType === 'tax_diff') {
+                                                                        updatedForm.total = numValue;
+                                                                        // Recalculate grand total
+                                                                        const enviFee = parseFloat(updatedForm.envi_fee) || 0;
+                                                                        updatedForm.grand_total = numValue + enviFee;
+                                                                    }
+                                                                    
+                                                                    newForms[index] = updatedForm;
+                                                                    return newForms;
+                                                                });
                                                             }}
-                                                            className="w-full px-2 py-1 text-xs border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-green-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all"
-                                                            step="0.01"
-                                                            min="0"
+                                                            onBlur={(e) => {
+                                                                const numValue = parseFloat(e.target.value) || 0;
+                                                                setEditForms(prevForms => {
+                                                                    const newForms = [...prevForms];
+                                                                    const updatedForm = { ...newForms[index] };
+                                                                    updatedForm.full_payment = numValue;
+                                                                    updatedForm.full_payment_input = numValue === 0 ? '' : numValue.toFixed(2);
+                                                                    
+                                                                    // Recalculate for Tax Diff
+                                                                    if (updatedForm.penaltyDiscountType === 'tax_diff') {
+                                                                        updatedForm.total = numValue;
+                                                                        const enviFee = parseFloat(updatedForm.envi_fee) || 0;
+                                                                        updatedForm.grand_total = numValue + enviFee;
+                                                                    }
+                                                                    
+                                                                    newForms[index] = updatedForm;
+                                                                    return newForms;
+                                                                });
+                                                            }}
+                                                            className="w-full px-2 py-1 text-xs border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-green-50 transition-all text-right"
                                                             placeholder="0.00"
                                                         />
                                                     ) : (
@@ -2580,7 +2764,7 @@ export default function SavedStatements({ auth }) {
                                                             <div className="flex items-center space-x-1 p-1 hover:bg-gray-100 rounded transition-colors">
                                                                 <input
                                                                     type="text"
-                                                                    value={form.penalty_discount !== 0 ? formatCurrencyTwoDecimals(form.penalty_discount) : ''}
+                                                                    value={form.penalty_discount > 0 && !isNaN(form.penalty_discount) && isFinite(form.penalty_discount) ? formatCurrencyTwoDecimals(form.penalty_discount) : ''}
                                                                     onChange={(e) => {
                                                                         const value = e.target.value.replace(/[^\d.-]/g, '');
                                                                         const numValue = parseFloat(value) || 0;
@@ -2595,7 +2779,7 @@ export default function SavedStatements({ auth }) {
                                                                     className="text-xs text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap transition-colors font-medium"
                                                                     title="Remove penalty/discount calculation"
                                                                 >
-                                                                    {taxAmnestyEnabled ? 'Tax Amnesty' : 'Tax Diff'}
+                                                                    Tax
                                                                 </button>
                                                             </div>
                                                         )}
@@ -2695,32 +2879,40 @@ export default function SavedStatements({ auth }) {
                                 <p className="text-xs font-medium text-gray-900 italic">"Please disregard this notice if payment has been made."</p>
                             </div>
 
-                            <div className="flex justify-between items-start mt-8">
-                                <div className="text-center w-5/12">
-                                    <p className="text-xs font-medium text-gray-900 mb-6">Prepared by:</p>
-                                    <div className="border-t border-gray-800 pt-2">
-                                        <input
-                                            type="text"
-                                            value={preparedBy}
-                                            onChange={(e) => setPreparedBy(e.target.value.toUpperCase())}
-                                            className="text-sm font-bold text-gray-900 text-center bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded w-full"
-                                            placeholder="Enter name"
-                                        />
-                                        <p className="text-xs text-gray-700">MTO STAFF</p>
+                            {/* Signature Section */}
+                            <div className="mt-12 px-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
+                                    
+                                    {/* Prepared By */}
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-700 mb-6 ml-12">Prepared by:</p>
+                                        <div className="text-center space-y-1">
+                                            <input
+                                                type="text"
+                                                value={preparedBy}
+                                                onChange={(e) => setPreparedBy(e.target.value.toUpperCase())}
+                                                className="w-64 text-base font-semibold text-gray-900 bg-transparent border-0 border-b-2 border-gray-400 focus:outline-none focus:border-blue-600 text-center pb-1 transition-colors"
+                                                
+                                            />
+                                            <p className="text-sm text-gray-600 mt-8">MTO STAFF</p>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="text-center w-5/12">
-                                    <p className="text-xs font-medium text-gray-900 mb-6">Certified Correct By:</p>
-                                    <div className="border-t border-gray-800 pt-2">
-                                        <input
-                                            type="text"
-                                            value={certifiedCorrectBy}
-                                            onChange={(e) => setCertifiedCorrectBy(e.target.value.toUpperCase())}
-                                            className="text-sm font-bold text-gray-900 text-center bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded w-full"
-                                            placeholder="Enter name"
-                                        />
-                                        <p className="text-xs text-gray-700">ACTING MUNICIPAL TREASURER</p>
+
+                                    {/* Certified Correct By */}
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-700 mb-6">Certified Correct By:</p>
+                                        <div className="text-center space-y-1">
+                                            <input
+                                                type="text"
+                                                value={certifiedCorrectBy}
+                                                onChange={(e) => setCertifiedCorrectBy(e.target.value.toUpperCase())}
+                                                className="w-64 text-base font-semibold text-gray-900 bg-transparent border-0 border-b-2 border-gray-400 focus:outline-none focus:border-blue-600 text-center pb-1 transition-colors"
+                                                placeholder="LALAINE M. CARILIMAN"
+                                            />
+                                            <p className="text-sm text-gray-600 mt-8">ACTING MUNICIPAL TREASURER</p>
+                                        </div>
                                     </div>
+
                                 </div>
                             </div>
 

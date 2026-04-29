@@ -283,12 +283,14 @@ export default function SavedStatements({ auth }) {
                                             <td class="border border-gray-800 px-3 py-2 text-center">${statement.payment_year || '-'}</td>
                                             <td class="border border-gray-800 px-3 py-2 text-right bg-gray-100">${fullPayment > 0 ? formatCurrency(fullPayment) : ''}</td>
                                             <td class="border border-gray-800 px-3 py-2 text-right bg-gray-100">
-                                                ${statement.penaltyDiscountType === 'tax_diff' 
+                                                ${statement.penaltyDiscountType === 'tax_amnesty' 
                                                     ? '<span class="text-green-700 font-medium">Tax Amnesty</span>' 
-                                                    : (penaltyAmount > 0 && !isNaN(penaltyAmount) && isFinite(penaltyAmount) ? formatCurrency(penaltyAmount) : '')
+                                                    : statement.penaltyDiscountType === 'tax_diff'
+                                                        ? '<span class="text-green-700 font-medium">Tax Diff</span>'
+                                                        : (penaltyAmount > 0 && !isNaN(penaltyAmount) && isFinite(penaltyAmount) ? formatCurrency(penaltyAmount) : '')
                                                 }
                                             </td>
-                                            <td class="border border-gray-800 px-3 py-2 text-right bg-blue-100 ${statement.penaltyDiscountType === 'tax_diff' ? 'text-green-700 font-bold' : 'font-bold'}">${total > 0 ? formatCurrency(roundToEven(total)) : ''}</td>
+                                            <td class="border border-gray-800 px-3 py-2 text-right bg-blue-100 ${(statement.penaltyDiscountType === 'tax_amnesty' || statement.penaltyDiscountType === 'tax_diff') ? 'text-green-700 font-bold' : 'font-bold'}">${total > 0 ? formatCurrency(roundToEven(total)) : ''}</td>
                                         </tr>
                                         `;
                                     }).join('')}
@@ -854,8 +856,8 @@ export default function SavedStatements({ auth }) {
                     let penaltyAmount = 0;
                     let total = 0;
                     
-                    if (updatedForm.penaltyDiscountType === 'tax_diff') {
-                        // Tax Diff: Total equals Basic/SEF only (no penalty/discount)
+                    if (updatedForm.penaltyDiscountType === 'tax_diff' || updatedForm.penaltyDiscountType === 'tax_amnesty') {
+                        // Tax Diff/Tax Amnesty: Total equals Basic/SEF only (no penalty/discount)
                         penaltyAmount = 0;
                         total = roundToEven(fullPayment);
                     } else {
@@ -875,9 +877,9 @@ export default function SavedStatements({ auth }) {
                 }
             }
             
-            // Handle fullPayment changes in Tax Diff mode
-            if (field === 'full_payment' && updatedForm.penaltyDiscountType === 'tax_diff') {
-                // In Tax Diff mode, Total equals fullPayment, but ensure it's rounded to even
+            // Handle fullPayment changes in Tax Diff/Tax Amnesty mode
+            if (field === 'full_payment' && (updatedForm.penaltyDiscountType === 'tax_diff' || updatedForm.penaltyDiscountType === 'tax_amnesty')) {
+                // In Tax Diff/Tax Amnesty mode, Total equals fullPayment, but ensure it's rounded to even
                 updatedForm.total = roundToEven(parseFloat(value) || 0);
                 // Recalculate grand total
                 const enviFee = parseFloat(updatedForm.envi_fee) || 0;
@@ -911,8 +913,8 @@ export default function SavedStatements({ auth }) {
     const initializeCalculations = () => {
         setEditForms(prevForms => {
             return prevForms.map(form => {
-                // Skip recalculation for Tax Diff rows - preserve existing values
-                if (form.penaltyDiscountType === 'tax_diff') {
+                // Skip recalculation for Tax Diff/Tax Amnesty rows - preserve existing values
+                if (form.penaltyDiscountType === 'tax_diff' || form.penaltyDiscountType === 'tax_amnesty') {
                     return form;
                 }
                 
@@ -1077,8 +1079,8 @@ export default function SavedStatements({ auth }) {
         setEditForms(statementsToEdit.map(statement => {
             // Validate and clean penalty_discount value
             let penaltyDiscount = 0;
-            if (statement.penaltyDiscountType === 'tax_diff') {
-                penaltyDiscount = 0; // Always 0 for tax amnesty
+            if (statement.penaltyDiscountType === 'tax_diff' || statement.penaltyDiscountType === 'tax_amnesty') {
+                penaltyDiscount = 0; // Always 0 for tax amnesty/tax diff
             } else {
                 const pdValue = parseFloat(statement.penalty_discount);
                 penaltyDiscount = (!isNaN(pdValue) && isFinite(pdValue)) ? pdValue : 0;
@@ -1482,17 +1484,18 @@ export default function SavedStatements({ auth }) {
         }
     }, [contextMenu.visible]);
 
-    // Handle Tax Diff selection
-    const handleTaxDiffSelect = (index) => {
+    // Handle Tax Diff selection with label choice
+    const handleTaxDiffSelect = (index, labelType = 'tax_diff') => {
         setEditForms(prevForms => {
             const newForms = [...prevForms];
-            const updatedForm = { ...newForms[index], penaltyDiscountType: 'tax_diff' };
+            // Set the chosen label type ('tax_diff' or 'tax_amnesty')
+            const updatedForm = { ...newForms[index], penaltyDiscountType: labelType };
             
             // Recalculate with Tax Diff logic
             const assessedValue = parseFloat(updatedForm.assessed_value) || 0;
             const paymentYear = updatedForm.payment_year;
             
-            // Calculate years and penalty (use tax amnesty if enabled)
+            // Calculate years and penalty (use tax amnesty if enabled for calculation, regardless of label choice)
             const { years } = taxAmnestyEnabled 
                 ? calculateTaxAmnestyPenalty(paymentYear)
                 : calculateYearsAndPenalty(paymentYear);
@@ -1503,7 +1506,7 @@ export default function SavedStatements({ auth }) {
             // Calculate full payment (basic/sef * number of years)
             const fullPayment = basicSef * years;
             
-            // Tax Diff: Total equals Basic/SEF only (no penalty/discount)
+            // Tax Diff/Amnesty: Total equals Basic/SEF only (no penalty/discount)
             const total = roundToEven(fullPayment);
             
             updatedForm.full_payment = fullPayment;
@@ -1724,8 +1727,8 @@ export default function SavedStatements({ auth }) {
             let penaltyAmount = 0;
             let total = 0;
             
-            if (updatedForm.penaltyDiscountType === 'tax_diff') {
-                // Tax Diff: Total equals Basic/SEF only (no penalty/discount)
+            if (updatedForm.penaltyDiscountType === 'tax_diff' || updatedForm.penaltyDiscountType === 'tax_amnesty') {
+                // Tax Diff/Tax Amnesty: Total equals Basic/SEF only (no penalty/discount)
                 penaltyAmount = 0;
                 total = roundToEven(fullPayment);
             } else {
@@ -1739,9 +1742,9 @@ export default function SavedStatements({ auth }) {
             updatedForm.total = total;
         }
 
-        // Handle full_payment changes in Tax Diff mode
-        if (fieldName === 'full_payment' && updatedForm.penaltyDiscountType === 'tax_diff') {
-            // In Tax Diff mode, Total equals fullPayment
+        // Handle full_payment changes in Tax Diff/Tax Amnesty mode
+        if (fieldName === 'full_payment' && (updatedForm.penaltyDiscountType === 'tax_diff' || updatedForm.penaltyDiscountType === 'tax_amnesty')) {
+            // In Tax Diff/Tax Amnesty mode, Total equals fullPayment
             updatedForm.total = parseFloat(value) || 0;
         }
 
@@ -2296,12 +2299,14 @@ export default function SavedStatements({ auth }) {
                                                                             {fullPayment > 0 ? formatCurrency(fullPayment) : ''}
                                                                         </td>
                                                                         <td className="border border-gray-800 px-3 py-2 text-xs text-right bg-gray-100 font-medium">
-                                                                            {statement.penaltyDiscountType === 'tax_diff' 
-                                                                                ? <span className="text-green-700 font-medium">Tax Amnesty</span> 
-                                                                                : (penaltyAmount > 0 && !isNaN(penaltyAmount) && isFinite(penaltyAmount) ? formatCurrency(penaltyAmount) : '')
+                                                                            {statement.penaltyDiscountType === 'tax_amnesty'
+                                                                                ? <span className="text-green-700 font-medium">Tax Amnesty</span>
+                                                                                : statement.penaltyDiscountType === 'tax_diff'
+                                                                                    ? <span className="text-green-700 font-medium">Tax Diff</span>
+                                                                                    : (penaltyAmount > 0 && !isNaN(penaltyAmount) && isFinite(penaltyAmount) ? formatCurrency(penaltyAmount) : '')
                                                                             }
                                                                         </td>
-                                                                        <td className={`border border-gray-800 px-3 py-2 text-xs text-right bg-blue-50 font-bold ${statement.penaltyDiscountType === 'tax_diff' ? 'text-green-700' : ''}`}>
+                                                                        <td className={`border border-gray-800 px-3 py-2 text-xs text-right bg-blue-50 font-bold ${(statement.penaltyDiscountType === 'tax_amnesty' || statement.penaltyDiscountType === 'tax_diff') ? 'text-green-700' : ''}`}>
                                                                             {total > 0 ? formatCurrency(roundToEven(total)) : ''}
                                                                         </td>
                                                                     </tr>
@@ -2349,7 +2354,7 @@ export default function SavedStatements({ auth }) {
                                         <div className="text-center space-y-1">
                                             <input
                                                 type="text"
-                                                value={preparedBy}
+                                                value={(batch.prepared_by || auth?.user?.name || '').toUpperCase()}
                                                 onChange={(e) => setPreparedBy(e.target.value.toUpperCase())}
                                                 className="w-64 text-base font-semibold text-gray-900 bg-transparent border-0 border-b-2 border-gray-400 focus:outline-none focus:border-blue-600 text-center pb-1 transition-colors"
                                                 
@@ -2364,7 +2369,7 @@ export default function SavedStatements({ auth }) {
                                         <div className="text-center space-y-1">
                                             <input
                                                 type="text"
-                                                value={certifiedCorrectBy}
+                                                value={(batch.certified_by || 'Lalaine M. Cariliman').toUpperCase()}
                                                 onChange={(e) => setCertifiedCorrectBy(e.target.value.toUpperCase())}
                                                 className="w-64 text-base font-semibold text-gray-900 bg-transparent border-0 border-b-2 border-gray-400 focus:outline-none focus:border-blue-600 text-center pb-1 transition-colors"
                                                 placeholder="LALAINE M. CARILIMAN"
@@ -2689,7 +2694,7 @@ export default function SavedStatements({ auth }) {
 
                                                 {/* Full Payment */}
                                                 <td className="border border-gray-800 px-3 py-2 text-xs text-right bg-gray-100 font-medium">
-                                                    {form.penaltyDiscountType === 'tax_diff' ? (
+                                                    {form.penaltyDiscountType === 'tax_diff' || form.penaltyDiscountType === 'tax_amnesty' ? (
                                                         <input
                                                             type="text"
                                                             value={form.full_payment_input || (form.full_payment === 0 ? '' : form.full_payment.toString())}
@@ -2705,8 +2710,8 @@ export default function SavedStatements({ auth }) {
                                                                     const numValue = parseFloat(cleanValue) || 0;
                                                                     updatedForm.full_payment = numValue;
                                                                     
-                                                                    // Recalculate total for Tax Diff
-                                                                    if (updatedForm.penaltyDiscountType === 'tax_diff') {
+                                                                    // Recalculate total for Tax Diff/Tax Amnesty
+                                                                    if (updatedForm.penaltyDiscountType === 'tax_diff' || updatedForm.penaltyDiscountType === 'tax_amnesty') {
                                                                         updatedForm.total = numValue;
                                                                         // Recalculate grand total
                                                                         const enviFee = parseFloat(updatedForm.envi_fee) || 0;
@@ -2725,8 +2730,8 @@ export default function SavedStatements({ auth }) {
                                                                     updatedForm.full_payment = numValue;
                                                                     updatedForm.full_payment_input = numValue === 0 ? '' : numValue.toFixed(2);
                                                                     
-                                                                    // Recalculate for Tax Diff
-                                                                    if (updatedForm.penaltyDiscountType === 'tax_diff') {
+                                                                    // Recalculate for Tax Diff/Tax Amnesty
+                                                                    if (updatedForm.penaltyDiscountType === 'tax_diff' || updatedForm.penaltyDiscountType === 'tax_amnesty') {
                                                                         updatedForm.total = numValue;
                                                                         const enviFee = parseFloat(updatedForm.envi_fee) || 0;
                                                                         updatedForm.grand_total = numValue + enviFee;
@@ -2749,9 +2754,11 @@ export default function SavedStatements({ auth }) {
                                                 {/* Penalty/Discount */}
                                                 <td className="border border-gray-800 px-3 py-2 text-xs text-right bg-gray-100 font-medium">
                                                     <div className="space-y-1">
-                                                        {form.penaltyDiscountType === 'tax_diff' ? (
+                                                        {form.penaltyDiscountType === 'tax_amnesty' || form.penaltyDiscountType === 'tax_diff' ? (
                                                             <div className="flex items-center justify-between p-1 bg-green-50 rounded border border-green-200">
-                                                                <span className="text-xs font-medium text-green-700">{taxAmnestyEnabled ? 'Tax Amnesty' : 'Tax Diff'}</span>
+                                                                <span className="text-xs font-medium text-green-700">
+                                                                    {form.penaltyDiscountType === 'tax_amnesty' ? 'Tax Amnesty' : 'Tax Diff'}
+                                                                </span>
                                                                 <button
                                                                     onClick={() => handleRemoveTaxDiff(index)}
                                                                     className="text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
@@ -2774,13 +2781,41 @@ export default function SavedStatements({ auth }) {
                                                                     step="0.01"
                                                                     placeholder="0.00"
                                                                 />
-                                                                <button
-                                                                    onClick={() => handleTaxDiffSelect(index)}
-                                                                    className="text-xs text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap transition-colors font-medium"
-                                                                    title="Remove penalty/discount calculation"
-                                                                >
-                                                                    Tax
-                                                                </button>
+                                                                <div className="relative">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const dropdown = document.getElementById(`tax-dropdown-edit-${index}`);
+                                                                            dropdown.classList.toggle('hidden');
+                                                                        }}
+                                                                        className="text-xs text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap transition-colors font-medium"
+                                                                        title="Choose tax calculation type"
+                                                                    >
+                                                                        Tax
+                                                                        <svg className="w-3 h-3 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                                        </svg>
+                                                                    </button>
+                                                                    <div id={`tax-dropdown-edit-${index}`} className="hidden absolute right-0 mt-1 w-32 bg-white border border-gray-300 rounded-md shadow-lg z-10">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                handleTaxDiffSelect(index, 'tax_diff');
+                                                                                document.getElementById(`tax-dropdown-edit-${index}`).classList.add('hidden');
+                                                                            }}
+                                                                            className="block w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
+                                                                        >
+                                                                            Tax Diff
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                handleTaxDiffSelect(index, 'tax_amnesty');
+                                                                                document.getElementById(`tax-dropdown-edit-${index}`).classList.add('hidden');
+                                                                            }}
+                                                                            className="block w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
+                                                                        >
+                                                                            Tax Amnesty
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         )}
                                                     </div>
@@ -2790,7 +2825,7 @@ export default function SavedStatements({ auth }) {
                                                 <td className="border border-gray-800 px-3 py-2 text-xs text-right bg-blue-50 font-bold">
                                                     {form.total !== 0 ? (
                                                         <div className={`font-bold ${
-                                                            form.penaltyDiscountType === 'tax_diff' ? 'text-green-700' : 'text-gray-900'
+                                                            (form.penaltyDiscountType === 'tax_diff' || form.penaltyDiscountType === 'tax_amnesty') ? 'text-green-700' : 'text-gray-900'
                                                         }`}>
                                                             {formatCurrency(roundToEven(form.total))}
                                                         </div>
@@ -2882,7 +2917,7 @@ export default function SavedStatements({ auth }) {
                             {/* Signature Section */}
                             <div className="mt-12 px-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
-                                    
+
                                     {/* Prepared By */}
                                     <div>
                                         <p className="text-sm font-medium text-gray-700 mb-6 ml-12">Prepared by:</p>

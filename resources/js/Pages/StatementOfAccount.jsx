@@ -521,18 +521,19 @@ export default function StatementOfAccount({ auth }) {
         }
     }, [contextMenu.visible]);
 
-    // Handle Tax Diff selection
-    const handleTaxDiffSelect = (id) => {
+    // Handle Tax Diff selection with label choice
+    const handleTaxDiffSelect = (id, labelType = 'tax_diff') => {
         setStatements(prevStatements => {
             const newStatements = prevStatements.map(statement => {
                 if (statement.id === id) {
-                    const updatedStatement = { ...statement, penaltyDiscountType: 'tax_diff' };
+                    // Save the chosen label type ('tax_diff' or 'tax_amnesty')
+                    const updatedStatement = { ...statement, penaltyDiscountType: labelType };
                     
                     // Recalculate with Tax Diff logic
                     const assessedValue = parseFloat(updatedStatement.assessedValue) || 0;
                     const paymentYear = updatedStatement.paymentYear;
                     
-                    // Calculate years and penalty (use tax amnesty if enabled)
+                    // Calculate years and penalty (use tax amnesty if enabled for calculation, regardless of label choice)
                     const { years } = taxAmnestyEnabled 
                         ? calculateTaxAmnestyPenalty(paymentYear)
                         : calculateYearsAndPenalty(paymentYear);
@@ -543,7 +544,7 @@ export default function StatementOfAccount({ auth }) {
                     // Calculate full payment (basic/sef * number of years)
                     const fullPayment = basicSef * years;
                     
-                    // Tax Diff: Total equals Basic/SEF only (no penalty/discount)
+                    // Tax Diff/Amnesty: Total equals Basic/SEF only (no penalty/discount)
                     const total = roundToEven(fullPayment);
                     
                     updatedStatement.fullPayment = fullPayment;
@@ -647,8 +648,8 @@ export default function StatementOfAccount({ auth }) {
                         let penaltyAmount = 0;
                         let total = 0;
                         
-                        if (updatedStatement.penaltyDiscountType === 'tax_diff') {
-                            // Tax Diff: Total equals Basic/SEF only (no penalty/discount)
+                        if (updatedStatement.penaltyDiscountType === 'tax_diff' || updatedStatement.penaltyDiscountType === 'tax_amnesty') {
+                            // Tax Diff/Amnesty: Total equals Basic/SEF only (no penalty/discount)
                             penaltyAmount = 0;
                             total = roundToEven(fullPayment);
                         } else {
@@ -663,9 +664,9 @@ export default function StatementOfAccount({ auth }) {
                         updatedStatement.noOfYears = years;
                     }
 
-                    // Handle fullPayment changes in Tax Diff mode
-                    if (field === 'fullPayment' && updatedStatement.penaltyDiscountType === 'tax_diff') {
-                        // In Tax Diff mode, Total equals fullPayment
+                    // Handle fullPayment changes in Tax Diff/Amnesty mode
+                    if (field === 'fullPayment' && (updatedStatement.penaltyDiscountType === 'tax_diff' || updatedStatement.penaltyDiscountType === 'tax_amnesty')) {
+                        // In Tax Diff/Amnesty mode, Total equals fullPayment
                         updatedStatement.total = parseFloat(value) || 0;
                     }
 
@@ -1231,9 +1232,11 @@ export default function StatementOfAccount({ auth }) {
                                                 </td>
                                                 <td className="border border-gray-800 px-2 py-1 text-xs text-right bg-gray-50">
                                                     <div className="space-y-1">
-                                                        {statement.penaltyDiscountType === 'tax_diff' ? (
+                                                        {(statement.penaltyDiscountType === 'tax_diff' || statement.penaltyDiscountType === 'tax_amnesty') ? (
                                                             <div className="flex items-center justify-between p-1 bg-green-50 rounded border border-green-200">
-                                                                <span className="text-xs font-medium text-green-700">{taxAmnestyEnabled ? 'Tax Amnesty' : 'Tax Diff'}</span>
+                                                                <span className="text-xs font-medium text-green-700">
+                                                                    {statement.penaltyDiscountType === 'tax_amnesty' ? 'Tax Amnesty' : 'Tax Diff'}
+                                                                </span>
                                                                 <button
                                                                     onClick={() => handleRemoveTaxDiff(statement.id)}
                                                                     className="text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
@@ -1255,13 +1258,41 @@ export default function StatementOfAccount({ auth }) {
                                                                     }}
                                                                     dangerouslySetInnerHTML={{ __html: statement.penaltyDiscount !== 0 ? formatCurrencyTwoDecimals(statement.penaltyDiscount) : '' }}
                                                                 />
-                                                                <button
-                                                                    onClick={() => handleTaxDiffSelect(statement.id)}
-                                                                    className="text-xs text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap transition-colors font-medium"
-                                                                    title="Remove penalty/discount calculation"
-                                                                >
-                                                                    {taxAmnestyEnabled ? 'Tax Amnesty' : 'Tax Diff'}
-                                                                </button>
+                                                                <div className="relative">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const dropdown = document.getElementById(`tax-dropdown-${statement.id}`);
+                                                                            dropdown.classList.toggle('hidden');
+                                                                        }}
+                                                                        className="text-xs text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap transition-colors font-medium"
+                                                                        title="Choose tax calculation type"
+                                                                    >
+                                                                        Tax
+                                                                        <svg className="w-3 h-3 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                                        </svg>
+                                                                    </button>
+                                                                    <div id={`tax-dropdown-${statement.id}`} className="hidden absolute right-0 mt-1 w-32 bg-white border border-gray-300 rounded-md shadow-lg z-10">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                handleTaxDiffSelect(statement.id, 'tax_diff');
+                                                                                document.getElementById(`tax-dropdown-${statement.id}`).classList.add('hidden');
+                                                                            }}
+                                                                            className="block w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
+                                                                        >
+                                                                            Tax Diff
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                handleTaxDiffSelect(statement.id, 'tax_amnesty');
+                                                                                document.getElementById(`tax-dropdown-${statement.id}`).classList.add('hidden');
+                                                                            }}
+                                                                            className="block w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
+                                                                        >
+                                                                            Tax Amnesty
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         )}
                                                     </div>
@@ -1269,7 +1300,7 @@ export default function StatementOfAccount({ auth }) {
                                                 <td className="border border-gray-800 px-2 py-1 text-xs text-right font-bold">
                                                     {statement.total !== 0 ? (
                                                         <div className={`font-bold ${
-                                                            statement.penaltyDiscountType === 'tax_diff' ? 'text-green-700' : 'text-gray-900'
+                                                            (statement.penaltyDiscountType === 'tax_diff' || statement.penaltyDiscountType === 'tax_amnesty') ? 'text-green-700' : 'text-gray-900'
                                                         }`}>
                                                             {formatCurrency(statement.total)}
                                                         </div>
